@@ -3,7 +3,7 @@ name = "quic"
 version = "0.1.0"
 authors = ["Brett Jackson <brett@brettjackson.org>"]
 description = "QUIC library for Rust. WIP"
-License = "Dual MIT and GPL"
+license = "Dual MIT and GPL"
 
 
 [dependencies]
