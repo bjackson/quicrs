@@ -6,7 +6,7 @@ extern crate byteorder;
 use std::net::UdpSocket;
 
 
-use byteorder::{ReadBytesExt, WriteBytesExt, LittleEndian};
+use byteorder::{ReadBytesExt, WriteBytesExt, LittleEndian, BigEndian};
 
 #[allow(dead_code)]
 #[repr(u8)]
@@ -16,9 +16,10 @@ pub enum PublicFlags {
     PublicFlagReset = 0x02,
     NoncePresent = 0x04,
     IdPresent = 0x08,
-    PktNumLen4 = 0x30,
-    PktNumLen2 = 0x20,
-    PktNumLen1 = 0x10,
+    PktNumLen6 = 0x30,
+    PktNumLen4 = 0x20,
+    PktNumLen2 = 0x10,
+    PktNumLen1 = 0x00,
     Multipath = 0x40,
 }
 
@@ -29,7 +30,6 @@ pub struct QuicPacketHeader {
     public_flags: u8,
     connection_id: u64,
     quic_version: String,
-    diversication_nonce: u32,
     packet_number: u64,
 }
 
@@ -50,14 +50,12 @@ impl QuicPacketHeader {
 
         contents.write_u64::<LittleEndian>(self.connection_id);
 
-        contents.push(self.quic_version.as_bytes()[0]);
-        contents.push(self.quic_version.as_bytes()[1]);
-        contents.push(self.quic_version.as_bytes()[2]);
-        contents.push(self.quic_version.as_bytes()[3]);
+        contents.write_u8(self.quic_version.as_bytes()[0]);
+        contents.write_u8(self.quic_version.as_bytes()[1]);
+        contents.write_u8(self.quic_version.as_bytes()[2]);
+        contents.write_u8(self.quic_version.as_bytes()[3]);
 
-        contents.write_u32::<LittleEndian>(self.diversication_nonce);
-
-        contents.write_uint::<LittleEndian>(self.packet_number, 6);
+        contents.write_uint::<LittleEndian>(self.packet_number, 8);
 
         contents
     }
@@ -78,21 +76,21 @@ impl QuicClient {
         let mut client = QuicClient {
             socket: udp_socket,
             current_packet_number: 0,
-            address: address
+            address: address,
         };
 
         let chlo_packet_header = QuicPacketHeader {
-            public_flags: (PublicFlags::PublicFlagVersion as u8 | PublicFlags::IdPresent as u8 | PublicFlags::NoncePresent as u8 | PublicFlags::PktNumLen4 as u8),
+            public_flags: (PublicFlags::PublicFlagVersion as u8 | PublicFlags::IdPresent as u8 | PublicFlags::PktNumLen4 as u8 | PublicFlags::NoncePresent as u8),
             connection_id: 8,
             quic_version: "Q035".to_string(),
             packet_number: client.current_packet_number + 1,
-            diversication_nonce: 0x10
         };
 
-        println!("{:x}", &chlo_packet_header.public_flags);
-        println!("{:?}", &chlo_packet_header.quic_version);
+        let payload = String::from("The FitnessGram Pacer Test is a multistage aerobic capacity test that progressively gets more difficult as it continues. The 20 meter pacer test will begin in 30 seconds. Line up at the start. The running speed starts slowly but gets faster each minute after you hear this signal bodeboop. A sing lap should be completed every time you hear this sound. ding Remember to run in a straight line and run as long as possible. The second time you fail to complete a lap before the sound, your test is over. The test will begin on the word start. On your mark. Get ready!… Start.");
 
-        let _ = client.socket.send_to(&chlo_packet_header.as_bytes(), &client.address);
+        let packet_data = [&chlo_packet_header.as_bytes(), payload.as_bytes()].concat();
+
+        let _ = client.socket.send_to(packet_data.as_slice(), &client.address);
 
         client.current_packet_number += 1;
 
