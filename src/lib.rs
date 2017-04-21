@@ -7,6 +7,8 @@ extern crate core;
 extern crate byteorder;
 #[macro_use]
 extern crate bitflags;
+extern crate rand;
+
 
 
 use std::net::UdpSocket;
@@ -99,6 +101,10 @@ impl QuicPacket {
             let packet_number = reader.read_u32::<BigEndian>().expect("Packet number not present");
             let version = reader.read_u32::<BigEndian>().expect("Version not present");
 
+            if version == 0 {
+                return Err("Invalid version".to_string());
+            }
+
             let mut payload = Vec::new();
             let _ = reader.read_to_end(&mut payload);
 
@@ -171,30 +177,29 @@ impl QuicClient {
 
         let mut client = QuicClient {
             socket: udp_socket,
-            current_packet_number: 0,
+            current_packet_number: QuicClient::get_first_packet_number(),
             address: address,
         };
 
         let init_header = LongHeader {
             packet_type: VERSION_NEGOTIATION,
             connection_id: 1,
-            packet_number: 1,
+            packet_number: client.current_packet_number,
             version: 1,
         };
-
-
-        let payload = String::from("The FitnessGram Pacer Test is a multistage aerobic capacity test that progressively gets more difficult as it continues. The 20 meter pacer test will begin in 30 seconds. Line up at the start. The running speed starts slowly but gets faster each minute after you hear this signal bodeboop. A sing lap should be completed every time you hear this sound. ding Remember to run in a straight line and run as long as possible. The second time you fail to complete a lap before the sound, your test is over. The test will begin on the word start. On your mark. Get ready!… Start.");
-
-//        let packet_data = [&chlo_packet_header.as_bytes(), payload.as_bytes()].concat();
-
-//        let _ = client.socket.send_to(packet_data.as_slice(), &client.address);
-
-//        client.current_packet_number += 1;
-
 
         client
     }
 
+    pub fn get_first_packet_number() -> u32 {
+        use rand::{OsRng};
+        use rand::distributions::{IndependentSample, Range};
+
+        let between = Range::new(0u32, 2u32.pow(31) - 1);
+        let mut rng = OsRng::new().expect("Cannot get random number");
+
+        between.ind_sample(&mut rng)
+    }
 
 
     pub fn get<'a>(&self, url: &str) -> Vec<u8> {
