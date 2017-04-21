@@ -206,12 +206,12 @@ impl QuicClient {
 mod tests {
     #[test]
     fn creates_new_socket() {
-        let _ = QuicClient::new("localhost", 443);
+        let _ = super::QuicClient::new("localhost", 443);
     }
 
     #[test]
     fn get_url() {
-        let client = QuicClient::new("google.com", 443);
-        assert_eq!(client.get("hello"), vec![0x01, 0x02]);
+        let client = super::QuicClient::new("google.com", 443);
+        assert_eq!(client.get("hello"), String::from("hello").into_bytes());
     }
 }
