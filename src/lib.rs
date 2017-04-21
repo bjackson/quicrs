@@ -152,7 +152,9 @@ impl QuicPacket {
         }
     }
 
-    fn as_bytes(&self) -> Vec<u8>
+    fn as_bytes(&self) -> Vec<u8> {
+        vec![0, 0]
+    }
 }
 
 pub struct QuicClient {
