@@ -16,12 +16,6 @@ use std::io::Read;
 use byteorder::{ReadBytesExt, WriteBytesExt, LittleEndian, BigEndian};
 
 
-bitfield!{ShortPacketType,
-    header_type: 1,
-    conn_id_flag: 1,
-    key_phase: 1,
-    packet_type: 5,
-}
 
 
 bitflags! {
@@ -34,6 +28,14 @@ bitflags! {
         const RTT1EncryptedPhase0 = 0x06,
         const RTT1EncryptedPhase1 = 0x07,
         const PublicReset = 0x08,
+    }
+}
+
+bitflags! {
+    flags ShortPacketType: u8 {
+        const OneByte = 0x01,
+        const TwoBytes = 0x02,
+        const FourBytes = 0x03,
     }
 }
 
@@ -107,7 +109,7 @@ impl QuicPacket {
                     packet_number: packet_number,
                     version: version,
                 }),
-                payload: vec![0, 0]
+                payload: payload
             })
         } else { // ShortHeader
             let conn_id_flag = first_byte & 0x40 != 0;
@@ -120,17 +122,34 @@ impl QuicPacket {
                 connection_id = Some(reader.read_u64::<BigEndian>().expect("Connection ID not present"));
             }
 
+            let packet_number_size = match ShortPacketType::from_bits(packet_type).expect("Invalid Packet Type") {
+                OneByte => Some(1),
+                TwoBytes => Some(2),
+                FourBytes => Some(4),
+                _ => return Err("Invalid Packet Type".to_string())
+            };
+
+            let mut packet_number: PacketNumber;
+
+            packet_number = match packet_number_size {
+                Some(1) => PacketNumber::OneByte(reader.read_uint::<BigEndian>(1).expect("Packet number is empty") as u8),
+                Some(2) => PacketNumber::TwoBytes(reader.read_uint::<BigEndian>(2).expect("Packet number is empty") as u16),
+                Some(4) => PacketNumber::FourBytes(reader.read_uint::<BigEndian>(4).expect("Packet number is empty") as u32),
+                _ => return Err("Invalid Packet Type".to_string()),
+            };
+
+            let mut payload = Vec::new();
+            let _ = reader.read_to_end(&mut payload);
+
             return Ok(QuicPacket {
                 header: QuicHeader::Short(ShortHeader {
                     key_phase_bit: key_phase_bit,
                     connection_id: connection_id,
-                    packet_number: PacketNumber::OneByte(0)
+                    packet_number: packet_number
                 }),
-                payload: vec![0, 0]
+                payload: payload
             })
         }
-
-        return Err("unimplemented".to_string());
     }
 }
 
