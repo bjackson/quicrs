@@ -13,29 +13,29 @@ use std::net::UdpSocket;
 use std::io::Cursor;
 use std::io::Read;
 
-use byteorder::{ReadBytesExt, WriteBytesExt, LittleEndian, BigEndian};
+use byteorder::{ReadBytesExt, BigEndian};
 
 
 
 
 bitflags! {
     flags PacketType: u8 {
-        const VersionNegotiation = 0x01,
-        const ClientCleartext = 0x02,
-        const NonFinalCleartext = 0x03,
-        const FinalServerClearText = 0x04,
-        const RTT0Encrypted = 0x05,
-        const RTT1EncryptedPhase0 = 0x06,
-        const RTT1EncryptedPhase1 = 0x07,
-        const PublicReset = 0x08,
+        const VERSION_NEGOTIATION = 0x01,
+        const CLIENT_CLEARTEXT = 0x02,
+        const NON_FINAL_CLEARTEXT = 0x03,
+        const FINAL_SERVER_CLEAR_TEXT = 0x04,
+        const RTT0_ENCRYPTED = 0x05,
+        const RTT1_ENCRYPTED_PHASE0 = 0x06,
+        const RTT1_ENCRYPTED_PHASE1 = 0x07,
+        const PUBLIC_RESET = 0x08,
     }
 }
 
 bitflags! {
     flags ShortPacketType: u8 {
-        const OneByte = 0x01,
-        const TwoBytes = 0x02,
-        const FourBytes = 0x03,
+        const ONE_BYTE = 0x01,
+        const TWO_BYTES = 0x02,
+        const FOUR_BYTES = 0x03,
     }
 }
 
@@ -123,10 +123,10 @@ impl QuicPacket {
             }
 
             let packet_number_size = match ShortPacketType::from_bits(packet_type).expect("Invalid Packet Type") {
-                OneByte => Some(1),
-                TwoBytes => Some(2),
-                FourBytes => Some(4),
-                _ => return Err("Invalid Packet Type".to_string())
+                ONE_BYTE => Some(1),
+                TWO_BYTES => Some(2),
+                FOUR_BYTES => Some(4),
+                _ => return Err("Invalid packet type".to_string())
             };
 
             let mut packet_number: PacketNumber;
@@ -176,7 +176,7 @@ impl QuicClient {
         };
 
         let init_header = LongHeader {
-            packet_type: VersionNegotiation,
+            packet_type: VERSION_NEGOTIATION,
             connection_id: 1,
             packet_number: 1,
             version: 1,
