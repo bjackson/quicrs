@@ -8,3 +8,5 @@ license = "MIT"
 
 [dependencies]
 byteorder = "1"
+bitfield = "0.0.12"
+bitflags = "0.8.2"
