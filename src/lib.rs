@@ -151,35 +151,9 @@ impl QuicPacket {
             })
         }
     }
-}
 
-//impl QuicPacketHeader {
-//    fn as_bytes(&self) -> Vec<u8> {
-//        use std::mem::transmute;
-//
-//        let mut contents = Vec::new();
-//
-//        contents.write_u8(self.public_flags);
-//
-////        unsafe {
-////            let conn64: [u8; 8] = transmute(self.connection_id.to_be());
-////            for byte in conn64.iter() {
-////                contents.push(*byte);
-////            }
-////        };
-//
-//        contents.write_u64::<LittleEndian>(self.connection_id);
-//
-//        contents.write_u8(self.quic_version.as_bytes()[0]);
-//        contents.write_u8(self.quic_version.as_bytes()[1]);
-//        contents.write_u8(self.quic_version.as_bytes()[2]);
-//        contents.write_u8(self.quic_version.as_bytes()[3]);
-//
-//        contents.write_uint::<LittleEndian>(self.packet_number, 8);
-//
-//        contents
-//    }
-//}
+    fn as_bytes(&self) -> Vec<u8>
+}
 
 pub struct QuicClient {
     pub socket: std::net::UdpSocket,
