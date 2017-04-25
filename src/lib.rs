@@ -9,13 +9,15 @@ extern crate byteorder;
 extern crate bitflags;
 extern crate rand;
 
-
+use std::io;
+use std::fmt;
 
 use std::net::UdpSocket;
 use std::io::Cursor;
 use std::io::Read;
+use std::error::Error;
 
-use byteorder::{ReadBytesExt, BigEndian};
+use byteorder::{WriteBytesExt, ReadBytesExt, BigEndian};
 
 
 
@@ -41,18 +43,38 @@ bitflags! {
     }
 }
 
-//#[repr(u8)]
-//#[derive(Debug, PartialEq)]
-//pub enum PacketType {
-//    VersionNegotiation = 0x01,
-//    ClientCleartext = 0x02,
-//    NonFinalCleartext = 0x03,
-//    FinalServerClearText = 0x04,
-//    RTT0Encrypted = 0x05,
-//    RTT1EncryptedPhase0 = 0x06,
-//    RTT1EncryptedPhase1 = 0x07,
-//    PublicReset = 0x08,
-//}
+
+
+#[derive(Debug)]
+enum QuicError {
+    Io(io::Error),
+    ParseError
+}
+
+impl Error for QuicError {
+    fn description(&self) -> &str {
+        match *self {
+            QuicError::Io(ref err) => err.description(),
+            QuicError::ParseError => "Error parsing packet",
+        }
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        match *self {
+            QuicError::Io(ref err) => Some(err),
+            QuicError::ParseError => None,
+        }
+    }
+}
+
+impl fmt::Display for QuicError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            QuicError::Io(ref err) => err.fmt(f),
+            QuicError::ParseError => write!(f, "Error parsing packet"),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum PacketNumber {
@@ -64,8 +86,41 @@ pub enum PacketNumber {
 #[derive(Debug)]
 pub struct ShortHeader {
     key_phase_bit: bool,
+    conn_id_bit: bool,
     connection_id: Option<u64>,
     packet_number: PacketNumber,
+    packet_type: ShortPacketType
+}
+
+impl ShortHeader {
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let mut first_octet = 0 as u8;
+
+        if self.conn_id_bit {
+            first_octet = first_octet | 0x40;
+        }
+
+        if self.key_phase_bit {
+            first_octet = first_octet | 0x20;
+        }
+
+        first_octet = first_octet | self.packet_type.bits();
+
+        bytes.write_u8(first_octet);
+
+        if self.conn_id_bit {
+            bytes.write_u32::<BigEndian>(self.connection_id.expect("Packet ID not present but conn_id_bit set") as u32);
+        }
+
+        match self.packet_number {
+            PacketNumber::OneByte(num) => bytes.write_u8(num),
+            PacketNumber::TwoBytes(num) => bytes.write_u16::<BigEndian>(num),
+            PacketNumber::FourBytes(num) => bytes.write_u32::<BigEndian>(num)
+        };
+
+        bytes
+    }
 }
 
 #[derive(Debug)]
@@ -76,11 +131,32 @@ pub struct LongHeader {
     version: u32,
 }
 
+impl LongHeader {
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let first_octet = 0x80 | self.packet_type.bits();
+
+        bytes.write_u8(first_octet);
+
+        bytes.write_u64::<BigEndian>(self.connection_id);
+
+        bytes.write_u32::<BigEndian>(self.packet_number as u32);
+
+        bytes.write_u32::<BigEndian>(self.version as u32);
+
+        bytes
+    }
+}
+
+#[derive(Debug)]
 enum QuicHeader {
     Short(ShortHeader),
     Long(LongHeader),
 }
 
+
+
+#[derive(Debug)]
 pub struct QuicPacket {
     header: QuicHeader,
     payload: Vec<u8>,
@@ -120,7 +196,7 @@ impl QuicPacket {
         } else { // ShortHeader
             let conn_id_flag = first_byte & 0x40 != 0;
             let key_phase_bit = first_byte & 0x20 != 0;
-            let packet_type = first_byte & 0x1f;
+            let packet_type = ShortPacketType::from_bits(first_byte & 0x1f).expect("Invalid packet type");
 
             let mut connection_id: Option<u64> = None;
 
@@ -128,19 +204,21 @@ impl QuicPacket {
                 connection_id = Some(reader.read_u64::<BigEndian>().expect("Connection ID not present"));
             }
 
-            let packet_number_size = match ShortPacketType::from_bits(packet_type).expect("Invalid Packet Type") {
-                ONE_BYTE => Some(1),
-                TWO_BYTES => Some(2),
-                FOUR_BYTES => Some(4),
-                _ => return Err("Invalid packet type".to_string())
-            };
 
-            let mut packet_number: PacketNumber;
+
+            let packet_number_size = match packet_type {
+                ONE_BYTE => Some(1u8),
+                TWO_BYTES => Some(2u8),
+                FOUR_BYTES => Some(4u8),
+                _ => return Err("Invalid packet type".to_string())
+            }.unwrap();
+
+            let packet_number: PacketNumber;
 
             packet_number = match packet_number_size {
-                Some(1) => PacketNumber::OneByte(reader.read_uint::<BigEndian>(1).expect("Packet number is empty") as u8),
-                Some(2) => PacketNumber::TwoBytes(reader.read_uint::<BigEndian>(2).expect("Packet number is empty") as u16),
-                Some(4) => PacketNumber::FourBytes(reader.read_uint::<BigEndian>(4).expect("Packet number is empty") as u32),
+                1 => PacketNumber::OneByte(reader.read_uint::<BigEndian>(1).expect("Packet number is empty") as u8),
+                2 => PacketNumber::TwoBytes(reader.read_uint::<BigEndian>(2).expect("Packet number is empty") as u16),
+                4 => PacketNumber::FourBytes(reader.read_uint::<BigEndian>(4).expect("Packet number is empty") as u32),
                 _ => return Err("Invalid Packet Type".to_string()),
             };
 
@@ -151,15 +229,22 @@ impl QuicPacket {
                 header: QuicHeader::Short(ShortHeader {
                     key_phase_bit: key_phase_bit,
                     connection_id: connection_id,
-                    packet_number: packet_number
+                    packet_number: packet_number,
+                    conn_id_bit: conn_id_flag,
+                    packet_type: packet_type
                 }),
                 payload: payload
             })
         }
     }
 
-    fn as_bytes(&self) -> Vec<u8> {
-        vec![0, 0]
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let header_bytes = match self.header {
+            QuicHeader::Short(ref header) => header.as_bytes(),
+            QuicHeader::Long(ref header) => header.as_bytes(),
+        };
+
+        [header_bytes, self.payload.clone()].concat()
     }
 }
 
