@@ -1,5 +1,6 @@
 #![feature(plugin)]
 #![allow(dead_code)]
+#![allow(unused_must_use)]
 #![plugin(bitfield)]
 #[cfg(test)]
 
@@ -48,7 +49,7 @@ bitflags! {
 #[derive(Debug)]
 enum QuicError {
     Io(io::Error),
-    ParseError
+    ParseError,
 }
 
 impl Error for QuicError {
@@ -64,6 +65,12 @@ impl Error for QuicError {
             QuicError::Io(ref err) => Some(err),
             QuicError::ParseError => None,
         }
+    }
+}
+
+impl From<io::Error> for QuicError {
+    fn from(err: io::Error) -> QuicError {
+        QuicError::Io(err)
     }
 }
 
@@ -167,18 +174,22 @@ enum ErrorType {
 }
 
 impl QuicPacket {
-    fn from_bytes(buf: Vec<u8>) -> Result<QuicPacket, String> {
+    fn from_bytes(buf: Vec<u8>) -> Result<QuicPacket, QuicError> {
         let mut reader = Cursor::new(buf);
-        let first_byte = reader.read_uint::<BigEndian>(1).expect("Packet is empty") as u8;
+        let first_byte = reader.read_uint::<BigEndian>(1)? as u8;
 
         if first_byte & 0x80 != 0 { // Long Header
-            let packet_type = first_byte & 0x7f;
-            let connection_id = reader.read_u64::<BigEndian>().expect("Connection ID not present");
-            let packet_number = reader.read_u32::<BigEndian>().expect("Packet number not present");
-            let version = reader.read_u32::<BigEndian>().expect("Version not present");
+            let packet_type = match PacketType::from_bits(first_byte & 0x7f) {
+                Some(pt) => pt,
+                None => return Err(QuicError::ParseError)
+            };
+
+            let connection_id = reader.read_u64::<BigEndian>()?;
+            let packet_number = reader.read_u32::<BigEndian>()?;
+            let version = reader.read_u32::<BigEndian>()?;
 
             if version == 0 {
-                return Err("Invalid version".to_string());
+                return Err(QuicError::ParseError)
             }
 
             let mut payload = Vec::new();
@@ -186,7 +197,7 @@ impl QuicPacket {
 
             return Ok(QuicPacket {
                 header: QuicHeader::Long(LongHeader {
-                    packet_type: PacketType::from_bits(packet_type).expect("Invalid Packet Type"),
+                    packet_type: packet_type,
                     connection_id: connection_id,
                     packet_number: packet_number,
                     version: version,
@@ -201,7 +212,7 @@ impl QuicPacket {
             let mut connection_id: Option<u64> = None;
 
             if conn_id_flag {
-                connection_id = Some(reader.read_u64::<BigEndian>().expect("Connection ID not present"));
+                connection_id = Some(reader.read_u64::<BigEndian>()?);
             }
 
 
@@ -210,7 +221,7 @@ impl QuicPacket {
                 ONE_BYTE => Some(1u8),
                 TWO_BYTES => Some(2u8),
                 FOUR_BYTES => Some(4u8),
-                _ => return Err("Invalid packet type".to_string())
+                _ => return Err(QuicError::ParseError)
             }.unwrap();
 
             let packet_number: PacketNumber;
@@ -219,7 +230,7 @@ impl QuicPacket {
                 1 => PacketNumber::OneByte(reader.read_uint::<BigEndian>(1).expect("Packet number is empty") as u8),
                 2 => PacketNumber::TwoBytes(reader.read_uint::<BigEndian>(2).expect("Packet number is empty") as u16),
                 4 => PacketNumber::FourBytes(reader.read_uint::<BigEndian>(4).expect("Packet number is empty") as u32),
-                _ => return Err("Invalid Packet Type".to_string()),
+                _ => return Err(QuicError::ParseError),
             };
 
             let mut payload = Vec::new();
@@ -250,8 +261,8 @@ impl QuicPacket {
 
 pub struct QuicClient {
     pub socket: std::net::UdpSocket,
-    current_packet_number: u32,
-    address: String
+    pub current_packet_number: u32,
+    pub address: String
 }
 
 
@@ -260,18 +271,18 @@ impl QuicClient {
         let address = format!("{}:{}", address, port);
         let udp_socket = UdpSocket::bind("0.0.0.0:0").expect("couldn't bind to address");
 
-        let mut client = QuicClient {
+        let client = QuicClient {
             socket: udp_socket,
             current_packet_number: QuicClient::get_first_packet_number(),
             address: address,
         };
 
-        let init_header = LongHeader {
-            packet_type: VERSION_NEGOTIATION,
-            connection_id: 1,
-            packet_number: client.current_packet_number,
-            version: 1,
-        };
+//        let init_header = LongHeader {
+//            packet_type: VERSION_NEGOTIATION,
+//            connection_id: 1,
+//            packet_number: client.current_packet_number,
+//            version: 1,
+//        };
 
         client
     }
