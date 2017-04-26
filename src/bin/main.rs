@@ -3,8 +3,9 @@ extern crate byteorder;
 
 
 
+
 fn main() {
-    let sock = quic::QuicClient::new("127.0.0.1", 443).expect("Unable to create quic client");
+    let sock = quic::client::QuicClient::new("127.0.0.1", 443).expect("Unable to create quic client");
     println!("{:?}", sock.socket);
 
     let byte_vector = vec![0, 0, 0, 0];
