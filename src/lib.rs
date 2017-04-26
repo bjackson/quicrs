@@ -10,16 +10,17 @@ extern crate byteorder;
 extern crate bitflags;
 extern crate rand;
 
-use std::io;
-use std::fmt;
-use std::result;
-
 use std::net::UdpSocket;
 use std::io::Cursor;
 use std::io::Read;
-use std::error::Error;
 
 use byteorder::{WriteBytesExt, ReadBytesExt, BigEndian};
+
+mod error;
+
+use error::QuicError;
+use error::Result;
+
 
 
 bitflags! {
@@ -57,47 +58,6 @@ bitflags! {
         const STREAM_BLOCKED = 0x09,
         const ACK = 0xa0,
         const STREAM = 0xc0,
-    }
-}
-
-
-
-#[derive(Debug)]
-pub enum QuicError {
-    Io(io::Error),
-    ParseError,
-}
-
-type Result<T> = result::Result<T, QuicError>;
-
-impl Error for QuicError {
-    fn description(&self) -> &str {
-        match *self {
-            QuicError::Io(ref err) => err.description(),
-            QuicError::ParseError => "Error parsing packet",
-        }
-    }
-
-    fn cause(&self) -> Option<&Error> {
-        match *self {
-            QuicError::Io(ref err) => Some(err),
-            QuicError::ParseError => None,
-        }
-    }
-}
-
-impl From<io::Error> for QuicError {
-    fn from(err: io::Error) -> QuicError {
-        QuicError::Io(err)
-    }
-}
-
-impl fmt::Display for QuicError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            QuicError::Io(ref err) => err.fmt(f),
-            QuicError::ParseError => write!(f, "Error parsing packet"),
-        }
     }
 }
 
