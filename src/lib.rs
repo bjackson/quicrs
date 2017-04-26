@@ -12,6 +12,7 @@ extern crate rand;
 
 use std::io;
 use std::fmt;
+use std::result;
 
 use std::net::UdpSocket;
 use std::io::Cursor;
@@ -19,8 +20,6 @@ use std::io::Read;
 use std::error::Error;
 
 use byteorder::{WriteBytesExt, ReadBytesExt, BigEndian};
-
-
 
 
 bitflags! {
@@ -44,13 +43,32 @@ bitflags! {
     }
 }
 
+bitflags! {
+    flags FrameType: u8 {
+        const PADDING = 0x00,
+        const RST_STREAM = 0x01,
+        const CONNECTION_CLOSE = 0x02,
+        const GOAWAY = 0x03,
+        const MAX_DATA = 0x04,
+        const MAX_STREAM_DATA = 0x05,
+        const MAX_STREAM_ID = 0x06,
+        const PING = 0x07,
+        const BLOCKED = 0x08,
+        const STREAM_BLOCKED = 0x09,
+        const ACK = 0xa0,
+        const STREAM = 0xc0,
+    }
+}
+
 
 
 #[derive(Debug)]
-enum QuicError {
+pub enum QuicError {
     Io(io::Error),
     ParseError,
 }
+
+type Result<T> = result::Result<T, QuicError>;
 
 impl Error for QuicError {
     fn description(&self) -> &str {
@@ -80,6 +98,74 @@ impl fmt::Display for QuicError {
             QuicError::Io(ref err) => err.fmt(f),
             QuicError::ParseError => write!(f, "Error parsing packet"),
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum QuicFrame {
+
+}
+
+#[derive(Debug)]
+pub struct StreamFrame {
+    f: bool,
+    data_length_present: bool,
+    data_length: Option<u16>,
+    stream_id: u32,
+    offset: u64,
+    stream_data: Vec<u8>,
+}
+
+impl StreamFrame {
+    pub fn from_bytes(buf: Vec<u8>) -> Result<StreamFrame> {
+        let mut reader = Cursor::new(buf);
+        let first_octet = reader.read_u8()?;
+
+        let f = first_octet & 0x20 > 0;
+        let data_length_present = first_octet & 0x10 > 0;
+
+        let oo = (first_octet & 0x0c) >> 2;
+        let ss = first_octet & 0x03;
+
+        let data_length: Option<u16>;
+
+        if data_length_present {
+            data_length = Some(reader.read_u16::<BigEndian>()?);
+        } else {
+            data_length = None;
+        }
+
+        let stream_id = reader.read_uint::<BigEndian>(ss as usize)? as u32;
+
+        let offset: u64;
+
+        if oo > 0 {
+            offset = reader.read_uint::<BigEndian>(oo as usize)?;
+        } else {
+            offset = 0;
+        }
+
+        let mut stream_data = Vec::new();
+
+        match data_length {
+            None => {
+                reader.read(&mut stream_data)?;
+            },
+            Some(length) => {
+                let mut reader_handle = reader.take(length as u64);
+                reader_handle.read(&mut stream_data)?;
+            }
+        }
+
+
+        Ok(StreamFrame {
+            f: f,
+            data_length_present: data_length_present,
+            data_length: data_length,
+            stream_id: stream_id,
+            offset: offset,
+            stream_data: stream_data,
+        })
     }
 }
 
@@ -156,25 +242,19 @@ impl LongHeader {
 }
 
 #[derive(Debug)]
-enum QuicHeader {
+pub enum QuicHeader {
     Short(ShortHeader),
     Long(LongHeader),
 }
 
-
-
 #[derive(Debug)]
 pub struct QuicPacket {
-    header: QuicHeader,
-    payload: Vec<u8>,
-}
-
-enum ErrorType {
-    BadPacket
+    pub header: QuicHeader,
+    pub payload: Vec<u8>,
 }
 
 impl QuicPacket {
-    fn from_bytes(buf: Vec<u8>) -> Result<QuicPacket, QuicError> {
+    pub fn from_bytes(buf: Vec<u8>) -> Result<QuicPacket> {
         let mut reader = Cursor::new(buf);
         let first_byte = reader.read_uint::<BigEndian>(1)? as u8;
 
@@ -193,7 +273,7 @@ impl QuicPacket {
             }
 
             let mut payload = Vec::new();
-            let _ = reader.read_to_end(&mut payload);
+            let _ = reader.read(&mut payload);
 
             return Ok(QuicPacket {
                 header: QuicHeader::Long(LongHeader {
@@ -224,17 +304,16 @@ impl QuicPacket {
                 _ => return Err(QuicError::ParseError)
             }.unwrap();
 
-            let packet_number: PacketNumber;
 
-            packet_number = match packet_number_size {
-                1 => PacketNumber::OneByte(reader.read_uint::<BigEndian>(1).expect("Packet number is empty") as u8),
-                2 => PacketNumber::TwoBytes(reader.read_uint::<BigEndian>(2).expect("Packet number is empty") as u16),
-                4 => PacketNumber::FourBytes(reader.read_uint::<BigEndian>(4).expect("Packet number is empty") as u32),
+            let packet_number = match packet_number_size {
+                1 => PacketNumber::OneByte(reader.read_uint::<BigEndian>(1)? as u8),
+                2 => PacketNumber::TwoBytes(reader.read_uint::<BigEndian>(2)? as u16),
+                4 => PacketNumber::FourBytes(reader.read_uint::<BigEndian>(4)? as u32),
                 _ => return Err(QuicError::ParseError),
             };
 
             let mut payload = Vec::new();
-            let _ = reader.read_to_end(&mut payload);
+            let _ = reader.read(&mut payload);
 
             return Ok(QuicPacket {
                 header: QuicHeader::Short(ShortHeader {
@@ -267,9 +346,9 @@ pub struct QuicClient {
 
 
 impl QuicClient {
-    pub fn new(address: &str, port: u16) -> QuicClient {
+    pub fn new(address: &str, port: u16) -> Result<QuicClient> {
         let address = format!("{}:{}", address, port);
-        let udp_socket = UdpSocket::bind("0.0.0.0:0").expect("couldn't bind to address");
+        let udp_socket = UdpSocket::bind("0.0.0.0:0")?;
 
         let client = QuicClient {
             socket: udp_socket,
@@ -284,7 +363,7 @@ impl QuicClient {
 //            version: 1,
 //        };
 
-        client
+        Ok(client)
     }
 
     pub fn get_first_packet_number() -> u32 {
@@ -296,23 +375,12 @@ impl QuicClient {
 
         between.ind_sample(&mut rng)
     }
-
-
-    pub fn get<'a>(&self, url: &str) -> Vec<u8> {
-        String::from(url).into_bytes()
-    }
 }
 
 
 mod tests {
     #[test]
-    fn creates_new_socket() {
+    fn creates_new_client() {
         let _ = super::QuicClient::new("localhost", 443);
-    }
-
-    #[test]
-    fn get_url() {
-        let client = super::QuicClient::new("google.com", 443);
-        assert_eq!(client.get("hello"), String::from("hello").into_bytes());
     }
 }
