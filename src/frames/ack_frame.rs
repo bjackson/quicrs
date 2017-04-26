@@ -1,5 +1,5 @@
 use std::io::Cursor;
-use byteorder::{WriteBytesExt, ReadBytesExt, BigEndian};
+use byteorder::{ReadBytesExt, BigEndian};
 
 //mod error;
 use error::QuicError;
