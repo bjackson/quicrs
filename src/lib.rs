@@ -22,7 +22,6 @@ use error::QuicError;
 use error::Result;
 
 mod frames;
-use frames::stream_frame::StreamFrame;
 
 
 bitflags! {
@@ -63,10 +62,7 @@ bitflags! {
     }
 }
 
-#[derive(Debug)]
-pub enum QuicFrame {
-    Stream(StreamFrame),
-}
+
 
 
 
