@@ -23,6 +23,6 @@ pub mod client;
 mod tests {
     #[test]
     fn creates_new_client() {
-        let _ = super::QuicClient::new("localhost", 443);
+        let _ = super::client::QuicClient::new("localhost", 443);
     }
 }
