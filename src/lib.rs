@@ -21,6 +21,8 @@ mod error;
 use error::QuicError;
 use error::Result;
 
+mod frames;
+use frames::stream_frame::StreamFrame;
 
 
 bitflags! {
@@ -63,71 +65,10 @@ bitflags! {
 
 #[derive(Debug)]
 pub enum QuicFrame {
-
+    Stream(StreamFrame),
 }
 
-#[derive(Debug)]
-pub struct StreamFrame {
-    f: bool,
-    data_length_present: bool,
-    data_length: Option<u16>,
-    stream_id: u32,
-    offset: u64,
-    stream_data: Vec<u8>,
-}
 
-impl StreamFrame {
-    pub fn from_bytes(buf: Vec<u8>) -> Result<StreamFrame> {
-        let mut reader = Cursor::new(buf);
-        let first_octet = reader.read_u8()?;
-
-        let f = first_octet & 0x20 > 0;
-        let data_length_present = first_octet & 0x10 > 0;
-
-        let oo = (first_octet & 0x0c) >> 2;
-        let ss = first_octet & 0x03;
-
-        let data_length: Option<u16>;
-
-        if data_length_present {
-            data_length = Some(reader.read_u16::<BigEndian>()?);
-        } else {
-            data_length = None;
-        }
-
-        let stream_id = reader.read_uint::<BigEndian>(ss as usize)? as u32;
-
-        let offset: u64;
-
-        if oo > 0 {
-            offset = reader.read_uint::<BigEndian>(oo as usize)?;
-        } else {
-            offset = 0;
-        }
-
-        let mut stream_data = Vec::new();
-
-        match data_length {
-            None => {
-                reader.read(&mut stream_data)?;
-            },
-            Some(length) => {
-                let mut reader_handle = reader.take(length as u64);
-                reader_handle.read(&mut stream_data)?;
-            }
-        }
-
-
-        Ok(StreamFrame {
-            f: f,
-            data_length_present: data_length_present,
-            data_length: data_length,
-            stream_id: stream_id,
-            offset: offset,
-            stream_data: stream_data,
-        })
-    }
-}
 
 #[derive(Debug)]
 pub enum PacketNumber {
