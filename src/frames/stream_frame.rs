@@ -130,7 +130,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn serialize_stream_frame() {
+    fn serialize_stream_frame_1() {
         let frame = StreamFrame {
             f: false,
             data_length_present: true,
@@ -138,6 +138,22 @@ mod tests {
             stream_id: 259,
             offset: 340,
             stream_data: vec![10u8; 50],
+        };
+
+        let bytes = frame.as_bytes().unwrap();
+        let parsed_frame = StreamFrame::from_bytes(&bytes).unwrap();
+
+        assert_eq!(parsed_frame, frame);
+    }
+
+    fn serialize_stream_frame_2() {
+        let frame = StreamFrame {
+            f: false,
+            data_length_present: true,
+            data_length: Some(1100),
+            stream_id: 12590,
+            offset: 780123,
+            stream_data: vec![10u8; 1100],
         };
 
         let bytes = frame.as_bytes().unwrap();
