@@ -13,9 +13,6 @@ use byteorder::{ReadBytesExt, BigEndian};
 use header::QuicHeader;
 use header::ShortHeader;
 use header::LongHeader;
-use header::PacketNumber;
-
-
 
 
 
@@ -102,9 +99,9 @@ impl QuicPacket {
 
 
             let packet_number = match packet_number_size {
-                1 => PacketNumber::OneByte(reader.read_uint::<BigEndian>(1)? as u8),
-                2 => PacketNumber::TwoBytes(reader.read_uint::<BigEndian>(2)? as u16),
-                4 => PacketNumber::FourBytes(reader.read_uint::<BigEndian>(4)? as u32),
+                1 => reader.read_uint::<BigEndian>(1)? as u64,
+                2 => reader.read_uint::<BigEndian>(2)? as u64,
+                4 => reader.read_uint::<BigEndian>(4)? as u64,
                 _ => return Err(QuicError::ParseError),
             };
 

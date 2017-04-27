@@ -12,7 +12,7 @@ extern crate rand;
 
 // Private modules
 mod frames;
-mod header;
+pub mod header;
 
 // Public modules
 pub mod error;

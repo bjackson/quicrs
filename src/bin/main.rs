@@ -2,7 +2,8 @@ extern crate quic;
 extern crate byteorder;
 
 
-
+//use quic::header::ShortHeader;
+//use quic::packet::TWO_BYTES;
 
 fn main() {
     let sock = quic::client::QuicClient::new("127.0.0.1", 443).expect("Unable to create quic client");

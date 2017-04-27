@@ -9,19 +9,23 @@ use error::QuicError;
 use packet::ShortPacketType;
 use packet::PacketType;
 
-#[derive(Debug)]
+use packet::ONE_BYTE;
+use packet::TWO_BYTES;
+use packet::FOUR_BYTES;
+
+#[derive(Debug, PartialEq)]
 pub enum PacketNumber {
     OneByte(u8),
     TwoBytes(u16),
     FourBytes(u32),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ShortHeader {
     pub key_phase_bit: bool,
     pub conn_id_bit: bool,
     pub connection_id: Option<u64>,
-    pub packet_number: PacketNumber,
+    pub packet_number: u64,
     pub packet_type: ShortPacketType
 }
 
@@ -45,28 +49,68 @@ impl ShortHeader {
         let mut first_octet = 0 as u8;
 
         if self.conn_id_bit {
-            first_octet = first_octet | 0x40;
+            first_octet |= 0x40;
         }
 
         if self.key_phase_bit {
-            first_octet = first_octet | 0x20;
+            first_octet |= 0x20;
         }
 
-        first_octet = first_octet | self.packet_type.bits();
+        first_octet = first_octet | (self.packet_type.bits() & 0x1f);
 
         bytes.write_u8(first_octet);
 
         if self.conn_id_bit {
-            bytes.write_u32::<BigEndian>(self.connection_id.expect("Packet ID not present but conn_id_bit set") as u32);
+            bytes.write_u64::<BigEndian>(self.connection_id.expect("Packet ID not present but conn_id_bit set") as u64);
         }
 
-        match self.packet_number {
-            PacketNumber::OneByte(num) => bytes.write_u8(num),
-            PacketNumber::TwoBytes(num) => bytes.write_u16::<BigEndian>(num),
-            PacketNumber::FourBytes(num) => bytes.write_u32::<BigEndian>(num)
+
+        match self.packet_type {
+            ONE_BYTE => bytes.write_u8(self.packet_number as u8),
+            TWO_BYTES => bytes.write_u16::<BigEndian>(self.packet_number as u16),
+            FOUR_BYTES => bytes.write_u32::<BigEndian>(self.packet_number as u32),
+            _ => bytes.write_u32::<BigEndian>(self.packet_number as u32)
         };
 
         bytes
+    }
+
+    pub fn from_bytes(buf: &Vec<u8>) -> Result<ShortHeader> {
+        let mut reader = Cursor::new(buf);
+
+        let first_octet = reader.read_u8()?;
+
+        let packet_type = match ShortPacketType::from_bits(first_octet & 0x1f) {
+            Some(pt) => pt,
+            None => return Err(QuicError::ParseError)
+        };
+
+        let conn_id_bit = first_octet & 0x40 > 0;
+        let key_phase_bit = first_octet & 0x20 > 0;
+
+        let connection_id;
+        if conn_id_bit {
+            connection_id = Some(reader.read_u64::<BigEndian>()?);
+        } else {
+            connection_id = None;
+        }
+
+        let packet_number = match packet_type {
+            ONE_BYTE => reader.read_u8()? as u64,
+            TWO_BYTES => reader.read_u16::<BigEndian>()? as u64,
+            FOUR_BYTES => reader.read_u32::<BigEndian>()? as u64,
+            _ => return Err(QuicError::ParseError)
+        };
+
+//        let packet_number = reader.read_uint::<BigEndian>(packet_num_len)?;
+
+        Ok(ShortHeader {
+            key_phase_bit: key_phase_bit,
+            conn_id_bit: conn_id_bit,
+            connection_id: connection_id,
+            packet_number: packet_number,
+            packet_type: packet_type,
+        })
     }
 }
 
@@ -129,7 +173,23 @@ mod tests {
 
         let long_header_bytes = long_header.as_bytes();
         let long_header_parsed = LongHeader::from_bytes(&long_header_bytes).unwrap();
-        
+
         assert_eq!(long_header, long_header_parsed);
+    }
+
+    #[test]
+    fn serialize_short_header() {
+        let header = ShortHeader {
+            key_phase_bit: true,
+            conn_id_bit: true,
+            connection_id: Some(23u64),
+            packet_number: 245u64,
+            packet_type: TWO_BYTES,
+        };
+
+        let header_bytes = header.as_bytes();
+        let header_parsed = ShortHeader::from_bytes(&header_bytes).unwrap();
+
+        assert_eq!(header, header_parsed);
     }
 }
