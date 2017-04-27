@@ -19,7 +19,7 @@ pub mod error;
 pub mod packet;
 pub mod client;
 
-
+#[cfg(test)]
 mod tests {
     #[test]
     fn creates_new_client() {

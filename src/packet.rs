@@ -50,7 +50,7 @@ pub struct QuicPacket {
 }
 
 impl QuicPacket {
-    pub fn from_bytes(buf: Vec<u8>) -> Result<QuicPacket> {
+    pub fn from_bytes(buf: &Vec<u8>) -> Result<QuicPacket> {
         let mut reader = Cursor::new(buf);
         let first_byte = reader.read_uint::<BigEndian>(1)? as u8;
 

@@ -26,7 +26,7 @@ pub struct AckBlock {
 }
 
 impl AckBlock {
-    pub fn from_bytes(buf: Vec<u8>, field_len: usize) -> Result<AckBlock> {
+    pub fn from_bytes(buf: &Vec<u8>, field_len: usize) -> Result<AckBlock> {
         let mut reader = Cursor::new(buf);
 
         let gap = reader.read_u8()?;
@@ -47,7 +47,7 @@ pub struct AckTimestamp {
 }
 
 impl AckTimestamp {
-    pub fn from_bytes(buf: Vec<u8>) -> Result<AckTimestamp> {
+    pub fn from_bytes(buf: &Vec<u8>) -> Result<AckTimestamp> {
         let mut reader = Cursor::new(buf);
 
         let delta_la = reader.read_u8()?;
@@ -61,7 +61,7 @@ impl AckTimestamp {
 }
 
 impl AckFrame {
-    pub fn from_bytes(buf: Vec<u8>) -> Result<AckFrame> {
+    pub fn from_bytes(buf: &Vec<u8>) -> Result<AckFrame> {
         let mut reader = Cursor::new(buf);
 
         let type_byte = reader.read_u8()?;
@@ -115,7 +115,7 @@ impl AckFrame {
 
 
             for block in ack_block_slice.chunks(1 + ack_len) {
-                let c_block = AckBlock::from_bytes(block.to_vec(), ack_len)?;
+                let c_block = AckBlock::from_bytes(&block.to_vec(), ack_len)?;
                 ack_blocks.push(c_block);
             }
         }
@@ -139,7 +139,7 @@ impl AckFrame {
             reader_handle.read(&mut ts_block_slice);
 
             for block in ts_block_slice.chunks(3) {
-                let c_block = AckTimestamp::from_bytes(block.to_vec())?;
+                let c_block = AckTimestamp::from_bytes(&block.to_vec())?;
                 timestamps.push(c_block);
             }
         } else {

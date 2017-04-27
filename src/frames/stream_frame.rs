@@ -17,7 +17,7 @@ pub struct StreamFrame {
 }
 
 impl StreamFrame {
-    pub fn from_bytes(buf: Vec<u8>) -> Result<StreamFrame> {
+    pub fn from_bytes(buf: &Vec<u8>) -> Result<StreamFrame> {
         let mut reader = Cursor::new(buf);
         let first_octet = reader.read_u8()?;
 

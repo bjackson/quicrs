@@ -1,8 +1,10 @@
 
+use std::io::Cursor;
 
+use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
 
-use byteorder::{WriteBytesExt, BigEndian};
-
+use error::Result;
+use error::QuicError;
 
 use packet::ShortPacketType;
 use packet::PacketType;
@@ -23,7 +25,7 @@ pub struct ShortHeader {
     pub packet_type: ShortPacketType
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct LongHeader {
     pub packet_type: PacketType,
     pub connection_id: u64,
@@ -85,5 +87,49 @@ impl LongHeader {
 
         bytes
     }
+
+    pub fn from_bytes(buf: &Vec<u8>) -> Result<LongHeader> {
+        let mut reader = Cursor::new(buf);
+
+        let first_octet = reader.read_u8()?;
+
+        let packet_type = match PacketType::from_bits(first_octet & 0x7f) {
+            Some(pt) => pt,
+            None => return Err(QuicError::ParseError)
+        };
+
+        let connection_id = reader.read_u64::<BigEndian>()?;
+
+        let packet_number = reader.read_u32::<BigEndian>()?;
+
+        let version = reader.read_u32::<BigEndian>()?;
+
+        Ok(LongHeader {
+            packet_type: packet_type,
+            connection_id: connection_id,
+            packet_number: packet_number,
+            version: version,
+        })
+    }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use packet::*;
+
+    #[test]
+    fn serialize_long_header() {
+        let long_header = LongHeader {
+            packet_type: VERSION_NEGOTIATION,
+            connection_id: 2522352u64,
+            packet_number: 25u32,
+            version: 0x1,
+        };
+
+        let long_header_bytes = long_header.as_bytes();
+        let long_header_parsed = LongHeader::from_bytes(&long_header_bytes).unwrap();
+        
+        assert_eq!(long_header, long_header_parsed);
+    }
+}
