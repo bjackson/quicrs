@@ -1,7 +1,6 @@
 #![feature(plugin)]
 #![allow(dead_code)]
 #![allow(unused_must_use)]
-#![plugin(bitfield)]
 #[cfg(test)]
 
 extern crate core;
