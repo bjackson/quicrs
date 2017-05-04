@@ -1,4 +1,3 @@
-#![feature(plugin)]
 #![allow(dead_code)]
 #![allow(unused_must_use)]
 #[cfg(test)]
