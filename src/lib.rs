@@ -16,6 +16,7 @@ pub mod header;
 pub mod error;
 pub mod packet;
 pub mod client;
+pub mod util;
 
 #[cfg(test)]
 mod tests {

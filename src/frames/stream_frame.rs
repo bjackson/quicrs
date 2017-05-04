@@ -146,6 +146,7 @@ mod tests {
         assert_eq!(parsed_frame, frame);
     }
 
+    #[test]
     fn serialize_stream_frame_2() {
         let frame = StreamFrame {
             f: false,

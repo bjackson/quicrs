@@ -1,12 +1,16 @@
 use std::io::Cursor;
-use byteorder::{ReadBytesExt, BigEndian};
+use byteorder::{WriteBytesExt, ReadBytesExt, BigEndian};
 
 //mod error;
 use error::QuicError;
 use error::Result;
 use std::io::Read;
+use util::OFSize;
+//use super::FrameType;
+//use frames::ACK;
+use util::optimal_field_size;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct AckFrame {
     pub num_blocks: Option<u8>,
     pub num_ts: u8,
@@ -19,7 +23,7 @@ pub struct AckFrame {
     pub timestamps: Option<Vec<AckTimestamp>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct AckBlock {
     pub gap: u8,
     pub block_len: u64,
@@ -38,9 +42,24 @@ impl AckBlock {
             block_len: block_len
         })
     }
+
+    pub fn as_bytes(&self, block_len_len: OFSize) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        bytes.write_u8(self.gap);
+
+        match block_len_len {
+            OFSize::U8 => bytes.write_u8(self.block_len as u8),
+            OFSize::U16 => bytes.write_u16::<BigEndian>(self.block_len as u16),
+            OFSize::U32 => bytes.write_u32::<BigEndian>(self.block_len as u32),
+            _ => panic!("Higher than u32 not covered yet!")
+        };
+
+        bytes
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct AckTimestamp {
     pub delta_la: u8,
     pub time_since_prev: u16
@@ -57,6 +76,15 @@ impl AckTimestamp {
             delta_la: delta_la,
             time_since_prev: time_since_prev,
         })
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        bytes.write_u8(self.delta_la);
+        bytes.write_u16::<BigEndian>(self.time_since_prev);
+
+        bytes
     }
 }
 
@@ -168,5 +196,168 @@ impl AckFrame {
             first_ts: first_ts,
             timestamps: ts_blocks_fin,
         })
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        let mut type_byte = super::ACK.bits();
+
+        match self.num_blocks {
+            Some(_) => type_byte |= 0x10,
+            _ => {}
+        };
+
+        let largest_ack_size = optimal_field_size(self.largest_ack);
+
+        match largest_ack_size {
+            OFSize::U8 => type_byte |= 0x00,
+            OFSize::U16 => type_byte |= 0x04,
+            OFSize::U32 => type_byte |= 0x08,
+            _ => panic!("u64 not covered yet in largest ack")
+        };
+
+        let max_block_len = match self.ack_blocks {
+            Some(ref ack_blocks) => ack_blocks.iter().max_by_key(|block| block.block_len),
+            None => None
+        };
+
+
+        let block_len_size = match max_block_len {
+            None => None,
+            Some(max_len_block) => Some(optimal_field_size(max_len_block.block_len))
+        };
+
+        match block_len_size {
+            None => {},
+            Some(OFSize::U8) => type_byte |= 0x00,
+            Some(OFSize::U16) => type_byte |= 0x01,
+            Some(OFSize::U32) => type_byte |= 0x02,
+            _ => panic!("u64 not covered yet in max_block_len")
+        };
+
+        bytes.write_u8(type_byte);
+
+
+        if let Some(ref ack_blocks) = self.ack_blocks {
+            bytes.write_u8(ack_blocks.len() as u8);
+        }
+
+        if let Some(ref ts_blocks) = self.timestamps {
+            let mut ts_len = ts_blocks.len();
+            if self.delta_la.is_some() {
+                ts_len += 1;
+            }
+
+            bytes.write_u8(ts_len as u8);
+        }
+
+        match largest_ack_size {
+            OFSize::U8 => {
+                bytes.write_u8(self.largest_ack as u8).unwrap()
+            },
+            OFSize::U16 => {
+                bytes.write_u16::<BigEndian>(self.largest_ack as u16).unwrap()
+            },
+            OFSize::U32 => {
+                bytes.write_u32::<BigEndian>(self.largest_ack as u32).unwrap()
+            },
+            _ => panic!("48 bit not supported")
+        }
+
+        bytes.write_u16::<BigEndian>(self.ack_delay);
+
+
+
+        if let Some(ref ack_blocks) = self.ack_blocks {
+            let mut ack_block_bytes = Vec::new();
+            let ack_block_byte_vectors = ack_blocks.iter().map(|ref block| {
+                return block.as_bytes( block_len_size.unwrap());
+            });
+
+            for ack_block_byte_vector in ack_block_byte_vectors {
+                ack_block_bytes.extend(ack_block_byte_vector);
+            }
+
+            bytes.extend(ack_block_bytes)
+        }
+
+
+
+        if let Some(ref ack_blocks) = self.timestamps {
+            let mut ack_block_bytes = Vec::new();
+
+            let ack_block_byte_vectors = ack_blocks.iter().map(|ref block| {
+                return block.as_bytes();
+            });
+
+            for ack_block_byte_vector in ack_block_byte_vectors {
+                ack_block_bytes.extend(ack_block_byte_vector);
+            }
+
+            bytes.extend(ack_block_bytes)
+        }
+
+
+
+
+
+        bytes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serialize_ack_frame_1() {
+        let timestamps = vec![
+            AckTimestamp {
+                delta_la: 31,
+                time_since_prev: 26,
+            },
+            AckTimestamp {
+                delta_la: 42,
+                time_since_prev: 97,
+            }
+        ];
+
+        let ack_blocks = vec![
+            AckBlock {
+                gap: 12,
+                block_len: 14,
+            },
+            AckBlock {
+                gap: 87,
+                block_len: 645,
+            },
+            AckBlock {
+                gap: 42,
+                block_len: 325,
+            },
+            AckBlock {
+                gap: 236,
+                block_len: 734,
+            }
+        ];
+
+        let ack_frame = AckFrame {
+            num_blocks: Some(4),
+            num_ts: 5,
+            largest_ack: 3,
+            ack_delay: 2,
+            first_ack_len: 5,
+            ack_blocks: Some(ack_blocks),
+            delta_la: Some(17),
+            first_ts: Some(91),
+            timestamps: Some(timestamps),
+        };
+
+        let ack_frame_bytes = ack_frame.as_bytes();
+        
+        let parsed_ack_frame = AckFrame::from_bytes(&ack_frame_bytes).unwrap();
+
+        assert_eq!(ack_frame, parsed_ack_frame);
     }
 }
