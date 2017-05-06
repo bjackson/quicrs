@@ -3,26 +3,26 @@ use byteorder::{WriteBytesExt, ReadBytesExt};
 use error::Result;
 
 #[derive(Debug, PartialEq)]
-pub struct BlockedFrame {}
+pub struct StreamIdNeededFrame {}
 
-impl BlockedFrame {
+impl StreamIdNeededFrame {
     pub fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
 
-        let first_byte = super::BLOCKED.bits();
+        let first_byte = super::STREAM_ID_NEEDED.bits();
 
         bytes.write_u8(first_byte);
 
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<BlockedFrame> {
+    pub fn from_bytes(buf: &Vec<u8>) -> Result<StreamIdNeededFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
 
 
-        Ok(BlockedFrame {})
+        Ok(StreamIdNeededFrame {})
     }
 }
 
@@ -32,10 +32,10 @@ mod tests {
 
     #[test]
     fn serialize() {
-        let frame = BlockedFrame { };
+        let frame = StreamIdNeededFrame { };
 
         let frame_bytes = frame.as_bytes();
-        let parsed_frame = BlockedFrame::from_bytes(&frame_bytes).unwrap();
+        let parsed_frame = StreamIdNeededFrame::from_bytes(&frame_bytes).unwrap();
 
         assert_eq!(frame, parsed_frame);
     }

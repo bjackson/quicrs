@@ -327,7 +327,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn serialize_ack_frame_1() {
+    fn serialize() {
         let timestamps = vec![
             AckTimestamp {
                 delta_la: 31,

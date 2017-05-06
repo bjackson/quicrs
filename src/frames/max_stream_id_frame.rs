@@ -38,7 +38,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn serialize_max_stream_id_frame() {
+    fn serialize() {
         let frame = MaxStreamIdFrame {
             max_stream_id: 293521,
         };

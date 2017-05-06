@@ -38,7 +38,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn serialize_max_data_frame() {
+    fn serialize() {
         let frame = MaxDataFrame {
             max_data: 293521,
         };

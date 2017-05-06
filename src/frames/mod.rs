@@ -5,7 +5,10 @@ pub mod max_stream_data_frame;
 pub mod max_stream_id_frame;
 pub mod blocked_frame;
 pub mod stream_blocked_frame;
-
+pub mod stream_id_needed_frame;
+pub mod padding_frame;
+pub mod ping_frame;
+pub mod new_connection_id_frame;
 
 use self::stream_frame::StreamFrame;
 use self::ack_frame::AckFrame;
@@ -14,6 +17,10 @@ use self::max_stream_data_frame::MaxStreamDataFrame;
 use self::max_stream_id_frame::MaxStreamIdFrame;
 use self::blocked_frame::BlockedFrame;
 use self::stream_blocked_frame::StreamBlockedFrame;
+use self::stream_id_needed_frame::StreamIdNeededFrame;
+use self::padding_frame::PaddingFrame;
+use self::ping_frame::PingFrame;
+use self::new_connection_id_frame::NewConnectionIdFrame;
 
 
 bitflags! {
@@ -28,7 +35,9 @@ bitflags! {
         const PING = 0x07,
         const BLOCKED = 0x08,
         const STREAM_BLOCKED = 0x09,
+        const STREAM_ID_NEEDED = 0x0a,
         const ACK = 0xa0,
+        const NEW_CONNECTION_ID = 0x0b,
         const STREAM = 0xc0,
     }
 }
@@ -41,5 +50,9 @@ pub enum QuicFrame {
     MaxStreamData(MaxStreamDataFrame),
     MaxStreamId(MaxStreamIdFrame),
     Blocked(BlockedFrame),
-    StreamBlockedFrame(StreamBlockedFrame),
+    StreamBlocked(StreamBlockedFrame),
+    StreamIdNeeded(StreamIdNeededFrame),
+    Padding(PaddingFrame),
+    Ping(PingFrame),
+    NewConnectionId(NewConnectionIdFrame),
 }
