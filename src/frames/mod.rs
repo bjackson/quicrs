@@ -10,6 +10,7 @@ pub mod padding_frame;
 pub mod ping_frame;
 pub mod new_connection_id_frame;
 pub mod connection_close_frame;
+pub mod goaway_frame;
 
 use self::stream_frame::StreamFrame;
 use self::ack_frame::AckFrame;
@@ -23,6 +24,7 @@ use self::padding_frame::PaddingFrame;
 use self::ping_frame::PingFrame;
 use self::new_connection_id_frame::NewConnectionIdFrame;
 use self::connection_close_frame::ConnectionCloseFrame;
+use self::goaway_frame::GoAwayFrame;
 
 
 bitflags! {
@@ -58,4 +60,5 @@ pub enum QuicFrame {
     Ping(PingFrame),
     NewConnectionId(NewConnectionIdFrame),
     ConnectionClose(ConnectionCloseFrame),
+    GoAway(GoAwayFrame),
 }
