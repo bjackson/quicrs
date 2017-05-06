@@ -9,6 +9,7 @@ pub mod stream_id_needed_frame;
 pub mod padding_frame;
 pub mod ping_frame;
 pub mod new_connection_id_frame;
+pub mod connection_close_frame;
 
 use self::stream_frame::StreamFrame;
 use self::ack_frame::AckFrame;
@@ -21,6 +22,7 @@ use self::stream_id_needed_frame::StreamIdNeededFrame;
 use self::padding_frame::PaddingFrame;
 use self::ping_frame::PingFrame;
 use self::new_connection_id_frame::NewConnectionIdFrame;
+use self::connection_close_frame::ConnectionCloseFrame;
 
 
 bitflags! {
@@ -55,4 +57,5 @@ pub enum QuicFrame {
     Padding(PaddingFrame),
     Ping(PingFrame),
     NewConnectionId(NewConnectionIdFrame),
+    ConnectionClose(ConnectionCloseFrame),
 }
