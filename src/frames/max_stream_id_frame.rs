@@ -11,7 +11,7 @@ impl MaxStreamIdFrame {
     pub fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
 
-        let first_byte = super::MAX_DATA.bits();
+        let first_byte = super::MAX_STREAM_ID.bits();
 
         bytes.write_u8(first_byte);
 

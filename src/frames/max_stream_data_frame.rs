@@ -12,7 +12,7 @@ impl MaxStreamDataFrame {
     pub fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
 
-        let first_byte = super::MAX_DATA.bits();
+        let first_byte = super::MAX_STREAM_DATA.bits();
 
         bytes.write_u8(first_byte);
 
