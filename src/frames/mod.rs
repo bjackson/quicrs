@@ -2,11 +2,14 @@ pub mod stream_frame;
 pub mod ack_frame;
 pub mod max_data_frame;
 pub mod max_stream_data_frame;
+pub mod max_stream_id_frame;
+
 
 use self::stream_frame::StreamFrame;
 use self::ack_frame::AckFrame;
 use self::max_data_frame::MaxDataFrame;
 use self::max_stream_data_frame::MaxStreamDataFrame;
+use self::max_stream_id_frame::MaxStreamIdFrame;
 
 
 bitflags! {
@@ -32,4 +35,5 @@ pub enum QuicFrame {
     Ack(AckFrame),
     MaxData(MaxDataFrame),
     MaxStreamData(MaxStreamDataFrame),
+    MaxStreamId(MaxStreamIdFrame),
 }

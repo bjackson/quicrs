@@ -3,11 +3,11 @@ use byteorder::{WriteBytesExt, ReadBytesExt, BigEndian};
 use error::Result;
 
 #[derive(Debug, PartialEq)]
-pub struct MaxDataFrame {
-    pub max_data: u64,
+pub struct MaxStreamIdFrame {
+    pub max_stream_id: u32,
 }
 
-impl MaxDataFrame {
+impl MaxStreamIdFrame {
     pub fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
 
@@ -15,20 +15,20 @@ impl MaxDataFrame {
 
         bytes.write_u8(first_byte);
 
-        bytes.write_u64::<BigEndian>(self.max_data);
+        bytes.write_u32::<BigEndian>(self.max_stream_id);
 
         bytes
     }
-    
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<MaxDataFrame> {
+
+    pub fn from_bytes(buf: &Vec<u8>) -> Result<MaxStreamIdFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
 
-        let max_data = reader.read_u64::<BigEndian>()?;
+        let maximum_data = reader.read_u32::<BigEndian>()?;
 
-        Ok(MaxDataFrame {
-            max_data: max_data,
+        Ok(MaxStreamIdFrame {
+            max_stream_id: maximum_data,
         })
     }
 }
@@ -38,13 +38,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn serialize_max_data_frame() {
-        let frame = MaxDataFrame {
-            max_data: 293521,
+    fn serialize_max_stream_id_frame() {
+        let frame = MaxStreamIdFrame {
+            max_stream_id: 293521,
         };
-        
+
         let frame_bytes = frame.as_bytes();
-        let parsed_frame = MaxDataFrame::from_bytes(&frame_bytes).unwrap();
+        let parsed_frame = MaxStreamIdFrame::from_bytes(&frame_bytes).unwrap();
 
         assert_eq!(frame, parsed_frame);
     }
