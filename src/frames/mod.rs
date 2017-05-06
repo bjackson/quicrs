@@ -4,6 +4,7 @@ pub mod max_data_frame;
 pub mod max_stream_data_frame;
 pub mod max_stream_id_frame;
 pub mod blocked_frame;
+pub mod stream_blocked_frame;
 
 
 use self::stream_frame::StreamFrame;
@@ -12,6 +13,7 @@ use self::max_data_frame::MaxDataFrame;
 use self::max_stream_data_frame::MaxStreamDataFrame;
 use self::max_stream_id_frame::MaxStreamIdFrame;
 use self::blocked_frame::BlockedFrame;
+use self::stream_blocked_frame::StreamBlockedFrame;
 
 
 bitflags! {
@@ -39,4 +41,5 @@ pub enum QuicFrame {
     MaxStreamData(MaxStreamDataFrame),
     MaxStreamId(MaxStreamIdFrame),
     Blocked(BlockedFrame),
+    StreamBlockedFrame(StreamBlockedFrame),
 }
