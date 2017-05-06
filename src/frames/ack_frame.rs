@@ -52,7 +52,8 @@ impl AckBlock {
             OFSize::U8 => bytes.write_u8(self.block_len as u8),
             OFSize::U16 => bytes.write_u16::<BigEndian>(self.block_len as u16),
             OFSize::U32 => bytes.write_u32::<BigEndian>(self.block_len as u32),
-            _ => panic!("Higher than u32 not covered yet!")
+            OFSize::U48 => bytes.write_uint::<BigEndian>(self.block_len as u64, 6),
+            _ => panic!("Higher than 48-bits not allowed in block length!")
         };
 
         bytes
@@ -139,7 +140,11 @@ impl AckFrame {
             let mut reader_handle = reader.clone().take(ack_block_section_len as u64);
 
             let mut ack_block_slice = Vec::new();
-            reader_handle.read(&mut ack_block_slice);
+            reader_handle.read_to_end(&mut ack_block_slice);
+
+            let new_pos = (reader.position() as u64) + (ack_block_section_len as u64);
+
+            reader.set_position(new_pos);
 
 
             for block in ack_block_slice.chunks(1 + ack_len) {
@@ -164,7 +169,7 @@ impl AckFrame {
 
             let mut ts_block_slice = Vec::new();
             let mut reader_handle = reader.clone().take(ts_block_section_len as u64);
-            reader_handle.read(&mut ts_block_slice);
+            reader_handle.read_to_end(&mut ts_block_slice);
 
             for block in ts_block_slice.chunks(3) {
                 let c_block = AckTimestamp::from_bytes(&block.to_vec())?;
@@ -198,14 +203,14 @@ impl AckFrame {
         })
     }
 
-    pub fn as_bytes(&self) -> Vec<u8> {
+    pub fn as_bytes(&self) -> Result<Vec<u8>> {
         let mut bytes = Vec::new();
 
         let mut type_byte = super::ACK.bits();
 
         match self.num_blocks {
             Some(_) => type_byte |= 0x10,
-            _ => {}
+            _ => type_byte |= 0x00
         };
 
         let largest_ack_size = optimal_field_size(self.largest_ack);
@@ -214,7 +219,8 @@ impl AckFrame {
             OFSize::U8 => type_byte |= 0x00,
             OFSize::U16 => type_byte |= 0x04,
             OFSize::U32 => type_byte |= 0x08,
-            _ => panic!("u64 not covered yet in largest ack")
+            OFSize::U48 => type_byte |= 0x0c,
+            _ => return Err(QuicError::SerializeError)
         };
 
         let max_block_len = match self.ack_blocks {
@@ -233,11 +239,11 @@ impl AckFrame {
             Some(OFSize::U8) => type_byte |= 0x00,
             Some(OFSize::U16) => type_byte |= 0x01,
             Some(OFSize::U32) => type_byte |= 0x02,
-            _ => panic!("u64 not covered yet in max_block_len")
+            Some(OFSize::U48) => type_byte |= 0x03,
+            _ => return Err(QuicError::SerializeError)
         };
 
         bytes.write_u8(type_byte);
-
 
         if let Some(ref ack_blocks) = self.ack_blocks {
             bytes.write_u8(ack_blocks.len() as u8);
@@ -246,7 +252,7 @@ impl AckFrame {
         if let Some(ref ts_blocks) = self.timestamps {
             let mut ts_len = ts_blocks.len();
             if self.delta_la.is_some() {
-                ts_len += 1;
+                ts_len += 0;
             }
 
             bytes.write_u8(ts_len as u8);
@@ -254,34 +260,47 @@ impl AckFrame {
 
         match largest_ack_size {
             OFSize::U8 => {
-                bytes.write_u8(self.largest_ack as u8).unwrap()
+                bytes.write_u8(self.largest_ack as u8)?
             },
             OFSize::U16 => {
-                bytes.write_u16::<BigEndian>(self.largest_ack as u16).unwrap()
+                bytes.write_u16::<BigEndian>(self.largest_ack as u16)?
             },
             OFSize::U32 => {
-                bytes.write_u32::<BigEndian>(self.largest_ack as u32).unwrap()
+                bytes.write_u32::<BigEndian>(self.largest_ack as u32)?
             },
-            _ => panic!("48 bit not supported")
+            OFSize::U48 => {
+                bytes.write_uint::<BigEndian>(self.largest_ack as u64, 6)?
+            },
+            _ => return Err(QuicError::SerializeError)
         }
 
         bytes.write_u16::<BigEndian>(self.ack_delay);
 
 
-
         if let Some(ref ack_blocks) = self.ack_blocks {
+            bytes.write_u16::<BigEndian>(ack_blocks.len() as u16);
             let mut ack_block_bytes = Vec::new();
             let ack_block_byte_vectors = ack_blocks.iter().map(|ref block| {
-                return block.as_bytes( block_len_size.unwrap());
+                return block.as_bytes(block_len_size.unwrap());
             });
 
             for ack_block_byte_vector in ack_block_byte_vectors {
                 ack_block_bytes.extend(ack_block_byte_vector);
             }
 
-            bytes.extend(ack_block_bytes)
+            bytes.extend(ack_block_bytes);
+
         }
 
+        match self.delta_la {
+            None => {},
+            Some(la) => { let _ = bytes.write_u8(la); }
+        }
+
+        match self.first_ts {
+            None => {},
+            Some(ts) => { let _ = bytes.write_u32::<BigEndian>(ts); }
+        }
 
 
         if let Some(ref ack_blocks) = self.timestamps {
@@ -299,10 +318,7 @@ impl AckFrame {
         }
 
 
-
-
-
-        bytes
+        Ok(bytes)
     }
 }
 
@@ -344,17 +360,17 @@ mod tests {
 
         let ack_frame = AckFrame {
             num_blocks: Some(4),
-            num_ts: 5,
-            largest_ack: 3,
-            ack_delay: 2,
-            first_ack_len: 5,
+            num_ts: 2,
+            largest_ack: 497,
+            ack_delay: 9,
+            first_ack_len: ack_blocks.len() as u64,
             ack_blocks: Some(ack_blocks),
             delta_la: Some(17),
             first_ts: Some(91),
             timestamps: Some(timestamps),
         };
 
-        let ack_frame_bytes = ack_frame.as_bytes();
+        let ack_frame_bytes = ack_frame.as_bytes().unwrap();
         
         let parsed_ack_frame = AckFrame::from_bytes(&ack_frame_bytes).unwrap();
 

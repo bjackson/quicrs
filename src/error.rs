@@ -8,6 +8,7 @@ use std::fmt;
 pub enum QuicError {
     Io(io::Error),
     ParseError,
+    SerializeError
 }
 
 pub type Result<T> = result::Result<T, QuicError>;
@@ -17,6 +18,7 @@ impl Error for QuicError {
         match *self {
             QuicError::Io(ref err) => err.description(),
             QuicError::ParseError => "Error parsing packet",
+            QuicError::SerializeError => "Error serializing packet"
         }
     }
 
@@ -24,6 +26,7 @@ impl Error for QuicError {
         match *self {
             QuicError::Io(ref err) => Some(err),
             QuicError::ParseError => None,
+            QuicError::SerializeError => None,
         }
     }
 }
@@ -39,6 +42,7 @@ impl fmt::Display for QuicError {
         match *self {
             QuicError::Io(ref err) => err.fmt(f),
             QuicError::ParseError => write!(f, "Error parsing packet"),
+            QuicError::SerializeError => write!(f, "Error serializing packet"),
         }
     }
 }
