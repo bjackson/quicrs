@@ -1,8 +1,10 @@
 pub mod stream_frame;
 pub mod ack_frame;
+pub mod max_data_frame;
 
 use self::stream_frame::StreamFrame;
 use self::ack_frame::AckFrame;
+use self::max_data_frame::MaxDataFrame;
 
 bitflags! {
     pub flags FrameType: u8 {
@@ -25,4 +27,5 @@ bitflags! {
 pub enum QuicFrame {
     Stream(StreamFrame),
     Ack(AckFrame),
+    MaxData(MaxDataFrame)
 }
