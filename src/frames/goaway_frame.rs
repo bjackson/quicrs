@@ -22,7 +22,7 @@ impl GoAwayFrame {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<GoAwayFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<GoAwayFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
@@ -34,6 +34,10 @@ impl GoAwayFrame {
             largest_client_stream_id: largest_client_stream_id,
             largest_server_stream_id: largest_server_stream_id,
         })
+    }
+
+    pub fn frame_len() -> Result<usize> {
+        Ok(9)
     }
 }
 

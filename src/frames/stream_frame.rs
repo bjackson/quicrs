@@ -17,7 +17,7 @@ pub struct StreamFrame {
 }
 
 impl StreamFrame {
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<StreamFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<StreamFrame> {
         let mut reader = Cursor::new(buf);
         let first_octet = reader.read_u8()?;
 
@@ -66,7 +66,7 @@ impl StreamFrame {
         })
     }
 
-    pub fn as_bytes(&self) -> Result<Vec<u8>> {
+    pub fn as_bytes(&self) -> Vec<u8> {
         let mut byte_vector = Vec::new();
 
         let mut type_byte = 0xc0;
@@ -121,7 +121,41 @@ impl StreamFrame {
 
 
 
-        Ok(byte_vector)
+        byte_vector
+    }
+
+    pub fn frame_len(buf: &[u8]) -> Result<usize> {
+        let mut reader = Cursor::new(buf);
+
+        let type_byte = reader.read_u8()?;
+
+        let mut len: usize = 1;
+
+        let data_length_present = type_byte & 0x10 > 0;
+
+        let oo = (type_byte >> 2) & 0x03;
+        let ss = type_byte & 0x03;
+
+        len += (ss + 1) as usize;
+
+        match oo {
+            0 => len += 0,
+            1 => len += 2,
+            2 => len += 4,
+            3 => len += 8,
+            _ => return Err(QuicError::ParseError)
+        };
+
+        if data_length_present {
+            let data_length = reader.read_u16::<BigEndian>()?;
+            len += 2;
+
+            len += data_length as usize;
+        } else {
+            len = buf.len();
+        }
+
+        Ok(len)
     }
 }
 
@@ -140,7 +174,7 @@ mod tests {
             stream_data: vec![10u8; 50],
         };
 
-        let bytes = frame.as_bytes().unwrap();
+        let bytes = frame.as_bytes();
         let parsed_frame = StreamFrame::from_bytes(&bytes).unwrap();
 
         assert_eq!(parsed_frame, frame);
@@ -157,7 +191,7 @@ mod tests {
             stream_data: vec![10u8; 1100],
         };
 
-        let bytes = frame.as_bytes().unwrap();
+        let bytes = frame.as_bytes();
         let parsed_frame = StreamFrame::from_bytes(&bytes).unwrap();
 
         assert_eq!(parsed_frame, frame);

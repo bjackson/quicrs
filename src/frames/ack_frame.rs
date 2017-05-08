@@ -90,7 +90,7 @@ impl AckTimestamp {
 }
 
 impl AckFrame {
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<AckFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<AckFrame> {
         let mut reader = Cursor::new(buf);
 
         let type_byte = reader.read_u8()?;
@@ -203,7 +203,7 @@ impl AckFrame {
         })
     }
 
-    pub fn as_bytes(&self) -> Result<Vec<u8>> {
+    pub fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
 
         let mut type_byte = super::ACK.bits();
@@ -220,7 +220,7 @@ impl AckFrame {
             OFSize::U16 => type_byte |= 0x04,
             OFSize::U32 => type_byte |= 0x08,
             OFSize::U48 => type_byte |= 0x0c,
-            _ => return Err(QuicError::SerializeError)
+            _ => panic!("largest ack too large")
         };
 
         let max_block_len = match self.ack_blocks {
@@ -240,7 +240,7 @@ impl AckFrame {
             Some(OFSize::U16) => type_byte |= 0x01,
             Some(OFSize::U32) => type_byte |= 0x02,
             Some(OFSize::U48) => type_byte |= 0x03,
-            _ => return Err(QuicError::SerializeError)
+            _ => panic!("largest ack too large")
         };
 
         bytes.write_u8(type_byte);
@@ -260,18 +260,18 @@ impl AckFrame {
 
         match largest_ack_size {
             OFSize::U8 => {
-                bytes.write_u8(self.largest_ack as u8)?
+                bytes.write_u8(self.largest_ack as u8).unwrap()
             },
             OFSize::U16 => {
-                bytes.write_u16::<BigEndian>(self.largest_ack as u16)?
+                bytes.write_u16::<BigEndian>(self.largest_ack as u16).unwrap()
             },
             OFSize::U32 => {
-                bytes.write_u32::<BigEndian>(self.largest_ack as u32)?
+                bytes.write_u32::<BigEndian>(self.largest_ack as u32).unwrap()
             },
             OFSize::U48 => {
-                bytes.write_uint::<BigEndian>(self.largest_ack as u64, 6)?
+                bytes.write_uint::<BigEndian>(self.largest_ack as u64, 6).unwrap()
             },
-            _ => return Err(QuicError::SerializeError)
+            _ => panic!("largest ack too large")
         }
 
         bytes.write_u16::<BigEndian>(self.ack_delay);
@@ -317,8 +317,50 @@ impl AckFrame {
             bytes.extend(ack_block_bytes)
         }
 
+        bytes
+    }
 
-        Ok(bytes)
+    pub fn frame_len(buf: &[u8]) -> Result<usize> {
+        let mut reader = Cursor::new(buf);
+
+        let type_byte = reader.read_u8()?;
+
+        let mut len = 1 + 1 + 2;
+
+        let n = type_byte & 0x10 > 0;
+        let ll = (type_byte & 0x0c) >> 2;
+        let mm = type_byte & 0x03;
+
+        if n {
+            len += 1;
+        }
+
+        let la_len = match ll {
+            0 => 1,
+            1 => 2,
+            3 => 4,
+            4 => 6,
+            _ => return Err(QuicError::ParseError),
+        } as usize;
+
+        len += la_len;
+
+        let ack_len = match mm {
+            0 => 1,
+            1 => 2,
+            3 => 4,
+            4 => 6,
+            _ => return Err(QuicError::ParseError),
+        } as usize;
+
+        len += ack_len;
+
+        if n {
+            let num_blocks = reader.read_u8()? as usize;
+            len += num_blocks * (1 + ack_len);
+        }
+
+        Ok(len)
     }
 }
 
@@ -370,7 +412,7 @@ mod tests {
             timestamps: Some(timestamps),
         };
 
-        let ack_frame_bytes = ack_frame.as_bytes().unwrap();
+        let ack_frame_bytes = ack_frame.as_bytes();
         
         let parsed_ack_frame = AckFrame::from_bytes(&ack_frame_bytes).unwrap();
 

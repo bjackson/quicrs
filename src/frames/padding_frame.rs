@@ -2,7 +2,7 @@ use std::io::Cursor;
 use byteorder::{WriteBytesExt, ReadBytesExt};
 use error::Result;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct PaddingFrame {}
 
 impl PaddingFrame {
@@ -16,13 +16,17 @@ impl PaddingFrame {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<PaddingFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<PaddingFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
 
 
         Ok(PaddingFrame {})
+    }
+
+    pub fn frame_len() -> Result<usize> {
+        Ok(1)
     }
 }
 

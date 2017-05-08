@@ -16,13 +16,17 @@ impl BlockedFrame {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<BlockedFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<BlockedFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
 
 
         Ok(BlockedFrame {})
+    }
+
+    pub fn frame_len() -> Result<usize> {
+        Ok(1)
     }
 }
 

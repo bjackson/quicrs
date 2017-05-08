@@ -33,7 +33,7 @@ impl ConnectionCloseFrame {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<ConnectionCloseFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<ConnectionCloseFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
@@ -60,6 +60,18 @@ impl ConnectionCloseFrame {
             reason_length: reason_length,
             reason_phrase: reason_phrase,
         })
+    }
+
+    pub fn frame_len(buf: &[u8]) -> Result<usize> {
+        let mut reader = Cursor::new(buf);
+
+        let len = 1 + 4 + 2;
+
+        let _ = reader.read_u8()?;
+        let _ = reader.read_u32::<BigEndian>()?;
+        let reason_len = reader.read_u16::<BigEndian>()? as usize;
+
+        Ok(len + reason_len)
     }
 }
 

@@ -20,7 +20,7 @@ impl MaxDataFrame {
         bytes
     }
     
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<MaxDataFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<MaxDataFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
@@ -30,6 +30,10 @@ impl MaxDataFrame {
         Ok(MaxDataFrame {
             max_data: max_data,
         })
+    }
+
+    pub fn frame_len() -> Result<usize> {
+        Ok(13)
     }
 }
 

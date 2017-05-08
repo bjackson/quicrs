@@ -14,7 +14,7 @@ use header::QuicHeader;
 use header::ShortHeader;
 use header::LongHeader;
 
-
+use frames::QuicFrame;
 
 bitflags! {
     pub flags ShortPacketType: u8 {
@@ -128,6 +128,63 @@ impl QuicPacket {
         };
 
         [header_bytes, self.payload.clone()].concat()
+    }
+
+    pub fn parse_decrypted_payload(buf: &[u8]) -> Result<Vec<QuicFrame>> {
+        let mut frames: Vec<QuicFrame> = Vec::new();
+
+        let mut position = 0;
+        loop {
+            let frame_len = QuicFrame::frame_length(&buf[position..])?;
+            let frame_end = position + frame_len;
+
+
+            let frame = QuicFrame::from_bytes(&buf[position..frame_end])?;
+
+            position += frame_len;
+
+
+            frames.push(frame);
+
+            if position == buf.len() {
+                break;
+            }
+        }
+
+        Ok(frames)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use frames;
+
+    #[test]
+    fn parse_decrypted_payload_1() {
+        let reason = "Terrible connection!";
+        let frames = vec![
+            QuicFrame::ConnectionClose(frames::connection_close_frame::ConnectionCloseFrame {
+                error_code: 29,
+                reason_length: reason.len() as u16,
+                reason_phrase: Some(reason.to_string()),
+            }),
+            QuicFrame::MaxStreamData(frames::max_stream_data_frame::MaxStreamDataFrame {
+                stream_id: 20099 as u32,
+                max_stream_data: 290 as u64,
+            }),
+        ];
+        
+        let mut bytes = Vec::new();
+
+        for frame in &frames {
+            let frame_bytes = frame.as_bytes();
+            bytes.extend(frame_bytes);
+        }
+
+        let parsed_frames = QuicPacket::parse_decrypted_payload(&bytes).unwrap();
+
+        assert_eq!(&frames, &parsed_frames);
     }
 }
 

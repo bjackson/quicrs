@@ -20,7 +20,7 @@ impl StreamBlockedFrame {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<StreamBlockedFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<StreamBlockedFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
@@ -30,6 +30,10 @@ impl StreamBlockedFrame {
         Ok(StreamBlockedFrame {
             stream_id: maximum_data,
         })
+    }
+
+    pub fn frame_len() -> Result<usize> {
+        Ok(5)
     }
 }
 

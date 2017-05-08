@@ -20,7 +20,7 @@ impl MaxStreamIdFrame {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<MaxStreamIdFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<MaxStreamIdFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
@@ -30,6 +30,10 @@ impl MaxStreamIdFrame {
         Ok(MaxStreamIdFrame {
             max_stream_id: maximum_data,
         })
+    }
+
+    pub fn frame_len() -> Result<usize> {
+        Ok(5)
     }
 }
 

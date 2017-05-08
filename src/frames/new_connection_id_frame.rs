@@ -26,7 +26,7 @@ impl NewConnectionIdFrame {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<NewConnectionIdFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<NewConnectionIdFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
@@ -42,6 +42,10 @@ impl NewConnectionIdFrame {
             connection_id: connection_id,
             packet_number_gap: packet_number_gap,
         })
+    }
+
+    pub fn frame_len() -> Result<usize> {
+        Ok(11)
     }
 }
 

@@ -16,13 +16,17 @@ impl StreamIdNeededFrame {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<StreamIdNeededFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<StreamIdNeededFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
 
 
         Ok(StreamIdNeededFrame {})
+    }
+
+    pub fn frame_len() -> Result<usize> {
+        Ok(17)
     }
 }
 

@@ -2,7 +2,7 @@ use std::io::Cursor;
 use byteorder::{WriteBytesExt, ReadBytesExt, BigEndian};
 use error::Result;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct MaxStreamDataFrame {
     pub stream_id: u32,
     pub max_stream_data: u64,
@@ -23,7 +23,7 @@ impl MaxStreamDataFrame {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<MaxStreamDataFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<MaxStreamDataFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
@@ -36,6 +36,10 @@ impl MaxStreamDataFrame {
             stream_id: stream_id,
             max_stream_data: max_stream_data,
         })
+    }
+
+    pub fn frame_len() -> Result<usize> {
+        Ok(13)
     }
 }
 

@@ -16,13 +16,17 @@ impl PingFrame {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<PingFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<PingFrame> {
         let mut reader = Cursor::new(buf);
 
         let _ = reader.read_u8()?;
 
 
         Ok(PingFrame {})
+    }
+
+    pub fn frame_len() -> Result<usize> {
+        Ok(1)
     }
 }
 
