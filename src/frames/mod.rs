@@ -79,21 +79,21 @@ pub enum QuicFrame {
 
 impl QuicFrame {
     pub fn as_bytes(&self) -> Vec<u8> {
-        match &self {
-            &&QuicFrame::Stream(ref f) => f.as_bytes(),
-            &&QuicFrame::Ack(ref f) => f.as_bytes(),
-            &&QuicFrame::MaxData(ref f) => f.as_bytes(),
-            &&QuicFrame::MaxStreamData(ref f) => f.as_bytes(),
-            &&QuicFrame::MaxStreamId(ref f) => f.as_bytes(),
-            &&QuicFrame::Blocked(ref f) => f.as_bytes(),
-            &&QuicFrame::StreamBlocked(ref f) => f.as_bytes(),
-            &&QuicFrame::StreamIdNeeded(ref f) => f.as_bytes(),
-            &&QuicFrame::Padding(ref f) => f.as_bytes(),
-            &&QuicFrame::Ping(ref f) => f.as_bytes(),
-            &&QuicFrame::NewConnectionId(ref f) => f.as_bytes(),
-            &&QuicFrame::ConnectionClose(ref f) => f.as_bytes(),
-            &&QuicFrame::GoAway(ref f) => f.as_bytes(),
-            &&QuicFrame::ResetStream(ref f) => f.as_bytes(),
+        match *self {
+            QuicFrame::Stream(ref f) => f.as_bytes(),
+            QuicFrame::Ack(ref f) => f.as_bytes(),
+            QuicFrame::MaxData(ref f) => f.as_bytes(),
+            QuicFrame::MaxStreamData(ref f) => f.as_bytes(),
+            QuicFrame::MaxStreamId(ref f) => f.as_bytes(),
+            QuicFrame::Blocked(ref f) => f.as_bytes(),
+            QuicFrame::StreamBlocked(ref f) => f.as_bytes(),
+            QuicFrame::StreamIdNeeded(ref f) => f.as_bytes(),
+            QuicFrame::Padding(ref f) => f.as_bytes(),
+            QuicFrame::Ping(ref f) => f.as_bytes(),
+            QuicFrame::NewConnectionId(ref f) => f.as_bytes(),
+            QuicFrame::ConnectionClose(ref f) => f.as_bytes(),
+            QuicFrame::GoAway(ref f) => f.as_bytes(),
+            QuicFrame::ResetStream(ref f) => f.as_bytes(),
         }
     }
 

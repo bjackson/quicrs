@@ -10,7 +10,8 @@ pub enum QuicError {
     Io(io::Error),
     ParseError,
     SerializeError,
-    FromUtf8Error(string::FromUtf8Error)
+    FromUtf8Error(string::FromUtf8Error),
+    PacketTooLarge,
 }
 
 pub type Result<T> = result::Result<T, QuicError>;
@@ -21,7 +22,8 @@ impl Error for QuicError {
             QuicError::Io(ref err) => err.description(),
             QuicError::FromUtf8Error(ref err) => err.description(),
             QuicError::ParseError => "Error parsing packet",
-            QuicError::SerializeError => "Error serializing packet"
+            QuicError::SerializeError => "Error serializing packet",
+            QuicError::PacketTooLarge => "Packet too large",
         }
     }
 
@@ -31,6 +33,7 @@ impl Error for QuicError {
             QuicError::FromUtf8Error(ref err) => Some(err),
             QuicError::ParseError => None,
             QuicError::SerializeError => None,
+            QuicError::PacketTooLarge => None,
         }
     }
 }
@@ -54,6 +57,7 @@ impl fmt::Display for QuicError {
             QuicError::FromUtf8Error(ref err) => err.fmt(f),
             QuicError::ParseError => write!(f, "Error parsing packet"),
             QuicError::SerializeError => write!(f, "Error serializing packet"),
+            QuicError::PacketTooLarge => write!(f, "Packet too large"),
         }
     }
 }

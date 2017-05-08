@@ -80,7 +80,7 @@ impl QuicPacket {
         } else { // ShortHeader
             let conn_id_flag = first_byte & 0x40 != 0;
             let key_phase_bit = first_byte & 0x20 != 0;
-            let packet_type = ShortPacketType::from_bits(first_byte & 0x1f).expect("Invalid packet type");
+            let packet_type = ShortPacketType::from_bits_truncate(first_byte & 0x1f);
 
             let mut connection_id: Option<u64> = None;
 
@@ -121,13 +121,19 @@ impl QuicPacket {
         }
     }
 
-    pub fn as_bytes(&self) -> Vec<u8> {
+    pub fn as_bytes(&self) -> Result<Vec<u8>> {
         let header_bytes = match self.header {
             QuicHeader::Short(ref header) => header.as_bytes(),
             QuicHeader::Long(ref header) => header.as_bytes(),
         };
 
-        [header_bytes, self.payload.clone()].concat()
+        let packet_bytes = [header_bytes, self.payload.clone()].concat();
+
+        if packet_bytes.len() > 1232 {
+            return Err(QuicError::PacketTooLarge);
+        }
+
+        Ok(packet_bytes)
     }
 
     pub fn parse_decrypted_payload(buf: &[u8]) -> Result<Vec<QuicFrame>> {
