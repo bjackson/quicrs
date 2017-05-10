@@ -75,7 +75,7 @@ impl ShortHeader {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<ShortHeader> {
+    pub fn from_bytes(buf: &[u8]) -> Result<ShortHeader> {
         let mut reader = Cursor::new(buf);
 
         let first_octet = reader.read_u8()?;
@@ -132,7 +132,7 @@ impl LongHeader {
         bytes
     }
 
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<LongHeader> {
+    pub fn from_bytes(buf: &[u8]) -> Result<LongHeader> {
         let mut reader = Cursor::new(buf);
 
         let first_octet = reader.read_u8()?;
@@ -147,6 +147,10 @@ impl LongHeader {
         let packet_number = reader.read_u32::<BigEndian>()?;
 
         let version = reader.read_u32::<BigEndian>()?;
+
+        if version == 0 {
+            return Err(QuicError::ParseError);
+        }
 
         Ok(LongHeader {
             packet_type: packet_type,

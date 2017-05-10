@@ -109,74 +109,59 @@ impl QuicPacket {
         let first_byte = reader.read_uint::<BigEndian>(1)? as u8;
 
         if first_byte & 0x80 != 0 { // Long Header
-            let packet_type = match PacketType::from_bits(first_byte & 0x7f) {
-                Some(pt) => pt,
-                None => return Err(QuicError::ParseError)
-            };
+            let mut header_bytes = [0u8; 17];
 
-            let connection_id = reader.read_u64::<BigEndian>()?;
-            let packet_number = reader.read_u32::<BigEndian>()?;
-            let version = reader.read_u32::<BigEndian>()?;
+            reader.read_exact(&mut header_bytes);
 
-            if version == 0 {
-                return Err(QuicError::ParseError)
-            }
+            let header = LongHeader::from_bytes(&header_bytes)?;
 
             let mut payload_bytes = Vec::new();
             let _ = reader.read_to_end(&mut payload_bytes);
 
 
-            let payload = match packet_type {
-                CLIENT_CLEARTEXT | NON_FINAL_CLEARTEXT | FINAL_SERVER_CLEAR_TEXT =>
+            let payload = match PacketType::from_bits(first_byte) {
+                Some(CLIENT_CLEARTEXT) | Some(NON_FINAL_CLEARTEXT) | Some(FINAL_SERVER_CLEAR_TEXT) =>
                     QuicPayload::Frames(QuicPacket::parse_decrypted_payload(payload_bytes.as_slice())?),
-                VERSION_NEGOTIATION =>
+                Some(VERSION_NEGOTIATION) =>
                     QuicPayload::VersionNegotiation(VersionNegotiationPayload::from_bytes(&payload_bytes)?),
-                _ => return Err(QuicError::ParseError),
+                Some(_) => return Err(QuicError::ParseError),
+                None => return Err(QuicError::ParseError),
             };
 
             return Ok(QuicPacket {
-                header: QuicHeader::Long(LongHeader {
-                    packet_type: packet_type,
-                    connection_id: connection_id,
-                    packet_number: packet_number,
-                    version: version,
-                }),
+                header: QuicHeader::Long(header),
                 payload: payload
             })
         } else { // ShortHeader
-            let conn_id_flag = first_byte & 0x40 != 0;
-            let key_phase_bit = first_byte & 0x20 != 0;
-            let packet_type = ShortPacketType::from_bits_truncate(first_byte & 0x1f);
+            let packet_type = match ShortPacketType::from_bits(first_byte & 0x1f) {
+                Some(pt) => pt,
+                None => return Err(QuicError::ParseError)
+            };
 
-            let mut connection_id: Option<u64> = None;
+            let mut header_len = 1;
 
-            if conn_id_flag {
-                connection_id = Some(reader.read_u64::<BigEndian>()?);
+            let conn_id_bit = first_byte & 0x40 > 0;
+
+            if conn_id_bit {
+                header_len += 8;
             }
 
-            let packet_number_size = match packet_type {
-                ONE_BYTE => Some(1u8),
-                TWO_BYTES => Some(2u8),
-                FOUR_BYTES => Some(4u8),
+            match packet_type {
+                ONE_BYTE => header_len += 1,
+                TWO_BYTES => header_len += 2,
+                FOUR_BYTES => header_len += 4,
                 _ => return Err(QuicError::ParseError)
-            }.unwrap();
-
-            let packet_number = match packet_number_size {
-                1 => reader.read_uint::<BigEndian>(1)? as u64,
-                2 => reader.read_uint::<BigEndian>(2)? as u64,
-                4 => reader.read_uint::<BigEndian>(4)? as u64,
-                _ => return Err(QuicError::ParseError),
             };
+            
+            let mut header_bytes = vec![0u8; header_len];
+
+            reader.read_exact(&mut header_bytes);
+
+            let header = ShortHeader::from_bytes(header_bytes.as_slice())?;
 
             // TODO: Decrypt frames and return the payloads.
             return Ok(QuicPacket {
-                header: QuicHeader::Short(ShortHeader {
-                    key_phase_bit: key_phase_bit,
-                    connection_id: connection_id,
-                    packet_number: packet_number,
-                    conn_id_bit: conn_id_flag,
-                    packet_type: packet_type
-                }),
+                header: QuicHeader::Short(header),
                 payload: QuicPayload::Frames(vec![])
             })
         }
