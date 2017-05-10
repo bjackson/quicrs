@@ -7,7 +7,7 @@ use error::Result;
 use std::io::Cursor;
 use std::io::Read;
 
-use byteorder::{ReadBytesExt, BigEndian};
+use byteorder::{WriteBytesExt, ReadBytesExt, BigEndian};
 
 
 use header::QuicHeader;
@@ -37,13 +37,70 @@ bitflags! {
     }
 }
 
+#[derive(Debug)]
+pub struct PublicResetPayload {
 
+}
 
+#[derive(Debug)]
+pub struct VersionNegotiationPayload {
+    pub versions: Vec<u32>,
+}
+
+impl VersionNegotiationPayload {
+    pub fn from_bytes(buf: &[u8]) -> Result<VersionNegotiationPayload> {
+        let mut reader = Cursor::new(buf);
+
+        let mut versions = Vec::new();
+
+        loop {
+            match reader.read_u32::<BigEndian>() {
+                Ok(version) => versions.push(version),
+                Err(_) => break
+            }
+        }
+
+        Ok(VersionNegotiationPayload {
+            versions: versions,
+        })
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+
+        self.versions.iter().map(|&version| bytes.write_u32::<BigEndian>(version));
+
+        bytes
+    }
+}
+
+#[derive(Debug)]
+pub enum QuicPayload {
+    Frames(Vec<QuicFrame>),
+    PublicReset(PublicResetPayload),
+    VersionNegotiation(VersionNegotiationPayload),
+}
+
+impl QuicPayload {
+    pub fn as_bytes(&self) -> Vec<u8> {
+        match *self {
+            QuicPayload::Frames(ref frames) => {
+                frames.iter().map(|ref frame| {
+                    frame.as_bytes()
+                })
+                    .collect::<Vec<_>>()
+                    .concat()
+            },
+            QuicPayload::PublicReset(_) => vec![],
+            QuicPayload::VersionNegotiation(ref version_payload) => version_payload.as_bytes(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct QuicPacket {
     pub header: QuicHeader,
-    pub payload: Option<Vec<QuicFrame>>,
+    pub payload: QuicPayload,
 }
 
 impl QuicPacket {
@@ -68,7 +125,14 @@ impl QuicPacket {
             let mut payload_bytes = Vec::new();
             let _ = reader.read_to_end(&mut payload_bytes);
 
-            let frames = QuicPacket::parse_decrypted_payload(payload_bytes.as_slice())?;
+
+            let payload = match packet_type {
+                CLIENT_CLEARTEXT | NON_FINAL_CLEARTEXT | FINAL_SERVER_CLEAR_TEXT =>
+                    QuicPayload::Frames(QuicPacket::parse_decrypted_payload(payload_bytes.as_slice())?),
+                VERSION_NEGOTIATION =>
+                    QuicPayload::VersionNegotiation(VersionNegotiationPayload::from_bytes(&payload_bytes)?),
+                _ => return Err(QuicError::ParseError),
+            };
 
             return Ok(QuicPacket {
                 header: QuicHeader::Long(LongHeader {
@@ -77,7 +141,7 @@ impl QuicPacket {
                     packet_number: packet_number,
                     version: version,
                 }),
-                payload: Some(frames)
+                payload: payload
             })
         } else { // ShortHeader
             let conn_id_flag = first_byte & 0x40 != 0;
@@ -90,15 +154,12 @@ impl QuicPacket {
                 connection_id = Some(reader.read_u64::<BigEndian>()?);
             }
 
-
-
             let packet_number_size = match packet_type {
                 ONE_BYTE => Some(1u8),
                 TWO_BYTES => Some(2u8),
                 FOUR_BYTES => Some(4u8),
                 _ => return Err(QuicError::ParseError)
             }.unwrap();
-
 
             let packet_number = match packet_number_size {
                 1 => reader.read_uint::<BigEndian>(1)? as u64,
@@ -107,11 +168,7 @@ impl QuicPacket {
                 _ => return Err(QuicError::ParseError),
             };
 
-//            let mut payload = Vec::new();
-//            let _ = reader.read_to_end(&mut payload);
-
             // TODO: Decrypt frames and return the payloads.
-
             return Ok(QuicPacket {
                 header: QuicHeader::Short(ShortHeader {
                     key_phase_bit: key_phase_bit,
@@ -120,7 +177,7 @@ impl QuicPacket {
                     conn_id_bit: conn_id_flag,
                     packet_type: packet_type
                 }),
-                payload: None
+                payload: QuicPayload::Frames(vec![])
             })
         }
     }
@@ -131,19 +188,9 @@ impl QuicPacket {
             QuicHeader::Long(ref header) => header.as_bytes(),
         };
 
-        let packet_bytes;
+        let payload_bytes = self.payload.as_bytes();
 
-        if let Some(ref payload) = self.payload {
-            let payload_bytes = payload.iter().map(|ref frame| {
-                frame.as_bytes()
-            })
-                .collect::<Vec<_>>()
-                .concat();
-
-            packet_bytes = [header_bytes, payload_bytes].concat();
-        } else {
-            packet_bytes = header_bytes;
-        }
+        let packet_bytes = [header_bytes, payload_bytes].concat();
 
         if packet_bytes.len() > 1232 {
             return Err(QuicError::PacketTooLarge);
@@ -160,11 +207,9 @@ impl QuicPacket {
             let frame_len = QuicFrame::frame_length(&buf[position..])?;
             let frame_end = position + frame_len;
 
-
             let frame = QuicFrame::from_bytes(&buf[position..frame_end])?;
 
             position += frame_len;
-
 
             frames.push(frame);
 

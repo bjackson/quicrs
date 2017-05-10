@@ -98,8 +98,6 @@ impl QuicFrame {
     }
 
     pub fn from_bytes(buf: &[u8]) -> Result<QuicFrame> {
-//        use std::ops::Index;
-
         if buf.len() == 0 {
             return Err(QuicError::ParseError);
         }
