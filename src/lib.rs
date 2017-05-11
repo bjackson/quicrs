@@ -6,6 +6,8 @@ extern crate byteorder;
 #[macro_use]
 extern crate bitflags;
 extern crate rand;
+extern crate itertools;
+
 
 // Private modules
 mod frames;
@@ -16,6 +18,7 @@ mod util;
 pub mod error;
 pub mod packet;
 pub mod client;
+pub mod stream;
 
 #[cfg(test)]
 mod tests {
