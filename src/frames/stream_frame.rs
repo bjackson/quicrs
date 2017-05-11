@@ -16,6 +16,10 @@ pub struct StreamFrame {
     pub stream_data: Vec<u8>,
 }
 
+//impl Clone for StreamFrame {
+//
+//}
+
 impl StreamFrame {
     pub fn from_bytes(buf: &[u8]) -> Result<StreamFrame> {
         let mut reader = Cursor::new(buf);

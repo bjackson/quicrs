@@ -38,54 +38,34 @@ impl<'a> Stream<'a> {
         })
     }
 
-//    pub fn on_receive_frame(&mut self, frame: &'a StreamFrame) -> Option<Vec<u8>> {
-//        if frame.offset == self.next_offset {
-////            self.next_offset += frame.stream_data.len() as u64;
-////            println!("self.next_offset = {:?}", self.next_offset);
-//
-//            self.frame_queue.push(frame);
-//            self.frame_queue.sort_by_key(|frame| frame.offset);
-//
-//            let last_offset = self.frame_queue.iter()
-//                .filter(|f| f.offset <= self.next_offset)
-//                .max_by_key(|f| f.offset).unwrap().offset as u64;
-//
-//            let last_len = self.frame_queue.iter()
-//                .filter(|f| f.offset <= self.next_offset)
-//                .max_by_key(|f| f.offset).unwrap().stream_data.len() as u64;
-//
-//            self.next_offset += last_len + last_offset;
-//            println!("self.next_offset = {:?}", self.next_offset);
-//
-//            let stream_bytes = self.frame_queue.iter()
-//                .filter(|f| f.offset <= self.next_offset)
-//                .map(|f| f.stream_data.clone())
-//                .collect::<Vec<_>>()
-//                .concat();
-//
-//
-//
-//            self.frame_queue = self.frame_queue.iter()
-//                .filter(|f| f.offset > self.next_offset)
-//                .map(|f| *f)
-//                .collect();
-//
-//            return Some(stream_bytes)
-//        } else {
-//            self.frame_queue.push(frame);
-//            self.frame_queue.sort_by_key(|frame| frame.offset);
-////            println!("frame.offset = {:?}", frame.offset);
-////            println!("pass self.next_offset = {:?}", self.next_offset);
-////            println!("self.frame_queue = {:?}", self.frame_queue);
-//            return None
-//        }
-//
-//
-//
-//    }
-
     pub fn on_receive_frame(&mut self, frame: &'a StreamFrame) -> Option<Vec<u8>> {
-        None
+        self.frame_queue.push(frame);
+        self.frame_queue.sort_by_key(|f| f.offset);
+        self.frame_queue.dedup_by_key(|f| f.offset);
+
+        let mut next_offset = self.next_offset;
+
+        let mut bytes: Vec<u8> = Vec::with_capacity(256);
+
+        for f in &self.frame_queue {
+            if f.offset == next_offset {
+                bytes.extend(&f.stream_data);
+
+                next_offset += f.stream_data.len() as u64;
+            }
+        }
+
+        if !bytes.is_empty() {
+            self.frame_queue = self.frame_queue.iter()
+                .filter(|f| f.offset > self.next_offset)
+                .map(|f| *f)
+                .collect();
+
+            self.next_offset = next_offset;
+            Some(bytes)
+        } else {
+            None
+        }
     }
 }
 
@@ -130,15 +110,15 @@ mod tests {
             offset: 85,
             stream_data: vec![4u8; 20],
         };
-//
-//        let frame_5 = StreamFrame {
-//            f: false,
-//            data_length_present: true,
-//            data_length: Some(10),
-//            stream_id: 1,
-//            offset: 105,
-//            stream_data: vec![4u8; 10],
-//        };
+
+        let frame_5 = StreamFrame {
+            f: false,
+            data_length_present: true,
+            data_length: Some(10),
+            stream_id: 1,
+            offset: 105,
+            stream_data: vec![4u8; 10],
+        };
 
         let mut stream = Stream::new(1, 250000).unwrap();
 
@@ -157,6 +137,10 @@ mod tests {
         let r_4 = stream.on_receive_frame(&frame_4);
 
         assert_eq!(r_4.unwrap(), frame_4.stream_data);
+
+        let r_5 = stream.on_receive_frame(&frame_5);
+
+        assert_eq!(r_5.unwrap(), frame_5.stream_data);
 
     }
 }
