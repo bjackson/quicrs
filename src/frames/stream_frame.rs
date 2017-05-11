@@ -27,6 +27,7 @@ impl StreamFrame {
         let oo = (first_octet >> 2) & 0x03;
         let ss = first_octet & 0x03;
 
+        #[allow(match_bool)]
         let data_length = match data_length_present {
             true => Some(reader.read_u16::<BigEndian>()?),
             false => None,
@@ -83,24 +84,23 @@ impl StreamFrame {
                 type_byte |= 0x04;
             } else if self.offset <= u32::max_value() as u64 {
                 type_byte |= 0x08;
-            } else if self.offset <= u64::max_value() {
+            } else {
                 type_byte |= 0x0c;
             }
         }
 
         // Skipping 3 byte stream_id's for now.
         if self.stream_id <= (u8::max_value() as u32) {
-            type_byte = type_byte | 0x00;
             byte_vector.write_u8(type_byte);
             byte_vector.write_u16::<BigEndian>(self.data_length.unwrap());
             byte_vector.write_u8(self.stream_id as u8);
         } else if self.stream_id <= (u16::max_value() as u32) {
-            type_byte = type_byte | 0x01;
+            type_byte |= 0x01;
             byte_vector.write_u8(type_byte);
             byte_vector.write_u16::<BigEndian>(self.data_length.unwrap());
             byte_vector.write_u16::<BigEndian>(self.stream_id as u16);
         } else {
-            type_byte = type_byte | 0x03;
+            type_byte |= 0x03;
             byte_vector.write_u8(type_byte);
             byte_vector.write_u16::<BigEndian>(self.data_length.unwrap());
             byte_vector.write_u32::<BigEndian>(self.stream_id as u32);
@@ -112,7 +112,7 @@ impl StreamFrame {
                 byte_vector.write_u16::<BigEndian>(self.offset as u16);
             } else if self.offset <= u32::max_value() as u64 {
                 byte_vector.write_u32::<BigEndian>(self.offset as u32);
-            } else if self.offset <= u64::max_value() {
+            } else {
                 byte_vector.write_u64::<BigEndian>(self.offset);
             }
         }

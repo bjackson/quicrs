@@ -42,18 +42,16 @@ impl ConnectionCloseFrame {
 
         let reason_length = reader.read_u16::<BigEndian>()?;
 
-        let reason_phrase;
-
-        if reason_length > 0 {
+        let reason_phrase = if reason_length > 0 {
             let mut phrase_reader = reader.clone().take(reason_length as u64);
             let mut phrase = Vec::new();
 
             phrase_reader.read_to_end(&mut phrase);
 
-            reason_phrase = Some(String::from_utf8(phrase)?);
+            Some(String::from_utf8(phrase)?)
         } else {
-            reason_phrase = None;
-        }
+            None
+        };
 
         Ok(ConnectionCloseFrame {
             error_code: error_code,

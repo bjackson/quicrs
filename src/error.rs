@@ -31,9 +31,7 @@ impl Error for QuicError {
         match *self {
             QuicError::Io(ref err) => Some(err),
             QuicError::FromUtf8Error(ref err) => Some(err),
-            QuicError::ParseError => None,
-            QuicError::SerializeError => None,
-            QuicError::PacketTooLarge => None,
+            QuicError::ParseError | QuicError::SerializeError | QuicError::PacketTooLarge => None,
         }
     }
 }

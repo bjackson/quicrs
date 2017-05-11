@@ -53,11 +53,8 @@ impl VersionNegotiationPayload {
 
         let mut versions = Vec::new();
 
-        loop {
-            match reader.read_u32::<BigEndian>() {
-                Ok(version) => versions.push(version),
-                Err(_) => break
-            }
+        while let Ok(version) = reader.read_u32::<BigEndian>() {
+            versions.push(version);
         }
 
         Ok(VersionNegotiationPayload {
@@ -85,7 +82,7 @@ impl QuicPayload {
     pub fn as_bytes(&self) -> Vec<u8> {
         match *self {
             QuicPayload::Frames(ref frames) => {
-                frames.iter().map(|ref frame| {
+                frames.iter().map(|frame| {
                     frame.as_bytes()
                 })
                     .collect::<Vec<_>>()
@@ -104,7 +101,7 @@ pub struct QuicPacket {
 }
 
 impl QuicPacket {
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<QuicPacket> {
+    pub fn from_bytes(buf: &[u8]) -> Result<QuicPacket> {
         let mut reader = Cursor::new(buf);
         let first_byte = reader.read_uint::<BigEndian>(1)? as u8;
 
@@ -124,11 +121,10 @@ impl QuicPacket {
                     QuicPayload::Frames(QuicPacket::parse_decrypted_payload(payload_bytes.as_slice())?),
                 Some(VERSION_NEGOTIATION) =>
                     QuicPayload::VersionNegotiation(VersionNegotiationPayload::from_bytes(&payload_bytes)?),
-                Some(_) => return Err(QuicError::ParseError),
-                None => return Err(QuicError::ParseError),
+                Some(_) | None => return Err(QuicError::ParseError),
             };
 
-            return Ok(QuicPacket {
+            Ok(QuicPacket {
                 header: QuicHeader::Long(header),
                 payload: payload
             })
@@ -152,7 +148,7 @@ impl QuicPacket {
                 FOUR_BYTES => header_len += 4,
                 _ => return Err(QuicError::ParseError)
             };
-            
+
             let mut header_bytes = vec![0u8; header_len];
 
             reader.read_exact(&mut header_bytes);
@@ -160,7 +156,7 @@ impl QuicPacket {
             let header = ShortHeader::from_bytes(header_bytes.as_slice())?;
 
             // TODO: Decrypt frames and return the payloads.
-            return Ok(QuicPacket {
+            Ok(QuicPacket {
                 header: QuicHeader::Short(header),
                 payload: QuicPayload::Frames(vec![])
             })

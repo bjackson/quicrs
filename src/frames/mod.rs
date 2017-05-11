@@ -98,86 +98,86 @@ impl QuicFrame {
     }
 
     pub fn from_bytes(buf: &[u8]) -> Result<QuicFrame> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return Err(QuicError::ParseError);
         }
 
         let frame_type = buf[0];
 
         if (frame_type & 0xf0) == ACK.bits() {
-            let frame = AckFrame::from_bytes(&buf)?;
+            let frame = AckFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::Ack(frame));
         }
 
         if (frame_type & 0xf0) == STREAM.bits() {
-            let frame = StreamFrame::from_bytes(&buf)?;
+            let frame = StreamFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::Stream(frame));
         }
 
         if frame_type == RST_STREAM.bits() {
-            let frame = ResetStreamFrame::from_bytes(&buf)?;
+            let frame = ResetStreamFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::ResetStream(frame));
         }
 
         if frame_type == CONNECTION_CLOSE.bits() {
-            let frame = ConnectionCloseFrame::from_bytes(&buf)?;
+            let frame = ConnectionCloseFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::ConnectionClose(frame));
         }
 
         if frame_type == GOAWAY.bits() {
-            let frame = GoAwayFrame::from_bytes(&buf)?;
+            let frame = GoAwayFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::GoAway(frame));
         }
 
         if frame_type == MAX_DATA.bits() {
-            let frame = MaxDataFrame::from_bytes(&buf)?;
+            let frame = MaxDataFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::MaxData(frame));
         }
 
         if frame_type == MAX_STREAM_DATA.bits() {
-            let frame = MaxStreamDataFrame::from_bytes(&buf)?;
+            let frame = MaxStreamDataFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::MaxStreamData(frame));
         }
 
         if frame_type == MAX_STREAM_ID.bits() {
-            let frame = MaxStreamIdFrame::from_bytes(&buf)?;
+            let frame = MaxStreamIdFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::MaxStreamId(frame));
         }
 
         if frame_type == PING.bits()  {
-            let frame = PingFrame::from_bytes(&buf)?;
+            let frame = PingFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::Ping(frame));
         }
 
         if frame_type == BLOCKED.bits() {
-            let frame = BlockedFrame::from_bytes(&buf)?;
+            let frame = BlockedFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::Blocked(frame));
         }
 
         if frame_type == STREAM_BLOCKED.bits() {
-            let frame = StreamBlockedFrame::from_bytes(&buf)?;
+            let frame = StreamBlockedFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::StreamBlocked(frame));
         }
 
         if frame_type == STREAM_ID_NEEDED.bits() {
-            let frame = StreamIdNeededFrame::from_bytes(&buf)?;
+            let frame = StreamIdNeededFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::StreamIdNeeded(frame));
         }
 
         if frame_type == NEW_CONNECTION_ID.bits() {
-            let frame = NewConnectionIdFrame::from_bytes(&buf)?;
+            let frame = NewConnectionIdFrame::from_bytes(buf)?;
 
             return Ok(QuicFrame::NewConnectionId(frame));
         }
@@ -190,10 +190,10 @@ impl QuicFrame {
 
         let type_byte = reader.read_u8()?;
 
-        return match FrameType::from_bits(type_byte) {
+        match FrameType::from_bits(type_byte) {
             Some(PADDING) => Ok(PaddingFrame::frame_len()?),
             Some(RST_STREAM) => Ok(ResetStreamFrame::frame_len()?),
-            Some(CONNECTION_CLOSE) => Ok(ConnectionCloseFrame::frame_len(&buf)?),
+            Some(CONNECTION_CLOSE) => Ok(ConnectionCloseFrame::frame_len(buf)?),
             Some(GOAWAY) => Ok(GoAwayFrame::frame_len()?),
             Some(MAX_DATA) => Ok(MaxDataFrame::frame_len()?),
             Some(MAX_STREAM_DATA) => Ok(MaxStreamDataFrame::frame_len()?),
@@ -203,10 +203,9 @@ impl QuicFrame {
             Some(STREAM_BLOCKED) => Ok(StreamBlockedFrame::frame_len()?),
             Some(STREAM_ID_NEEDED) => Ok(StreamIdNeededFrame::frame_len()?),
             Some(NEW_CONNECTION_ID) => Ok(NewConnectionIdFrame::frame_len()?),
-            Some(ACK) => Ok(AckFrame::frame_len(&buf)?),
-            Some(STREAM) => Ok(StreamFrame::frame_len(&buf)?),
-            Some(_) => return Err(QuicError::ParseError),
-            None => return Err(QuicError::ParseError)
+            Some(ACK) => Ok(AckFrame::frame_len(buf)?),
+            Some(STREAM) => Ok(StreamFrame::frame_len(buf)?),
+            Some(_) | None => Err(QuicError::ParseError),
         }
     }
 }

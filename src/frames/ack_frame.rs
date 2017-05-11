@@ -30,7 +30,7 @@ pub struct AckBlock {
 }
 
 impl AckBlock {
-    pub fn from_bytes(buf: &Vec<u8>, field_len: usize) -> Result<AckBlock> {
+    pub fn from_bytes(buf: &[u8], field_len: usize) -> Result<AckBlock> {
         let mut reader = Cursor::new(buf);
 
         let gap = reader.read_u8()?;
@@ -67,7 +67,7 @@ pub struct AckTimestamp {
 }
 
 impl AckTimestamp {
-    pub fn from_bytes(buf: &Vec<u8>) -> Result<AckTimestamp> {
+    pub fn from_bytes(buf: &[u8]) -> Result<AckTimestamp> {
         let mut reader = Cursor::new(buf);
 
         let delta_la = reader.read_u8()?;
@@ -116,13 +116,13 @@ impl AckFrame {
             _ => return Err(QuicError::ParseError),
         } as usize;
 
-        let num_blocks;
+//        let num_blocks;
 
-        if n {
-            num_blocks = Some(reader.read_u8()?);
+        let num_blocks = if n {
+            Some(reader.read_u8()?)
         } else {
-            num_blocks = None;
-        }
+            None
+        };
 
         let num_ts = reader.read_u8()?;
 
@@ -280,9 +280,9 @@ impl AckFrame {
         if let Some(ref ack_blocks) = self.ack_blocks {
             bytes.write_u16::<BigEndian>(ack_blocks.len() as u16);
             let mut ack_block_bytes = Vec::new();
-            let ack_block_byte_vectors = ack_blocks.iter().map(|ref block| {
-                return block.as_bytes(block_len_size.unwrap());
-            });
+            let ack_block_byte_vectors = ack_blocks.iter().map(|block|
+                block.as_bytes(block_len_size.unwrap())
+            );
 
             for ack_block_byte_vector in ack_block_byte_vectors {
                 ack_block_bytes.extend(ack_block_byte_vector);
@@ -306,9 +306,9 @@ impl AckFrame {
         if let Some(ref ack_blocks) = self.timestamps {
             let mut ack_block_bytes = Vec::new();
 
-            let ack_block_byte_vectors = ack_blocks.iter().map(|ref block| {
-                return block.as_bytes();
-            });
+            let ack_block_byte_vectors = ack_blocks.iter().map(|block|
+                block.as_bytes()
+            );
 
             for ack_block_byte_vector in ack_block_byte_vectors {
                 ack_block_bytes.extend(ack_block_byte_vector);

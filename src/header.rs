@@ -56,7 +56,7 @@ impl ShortHeader {
             first_octet |= 0x20;
         }
 
-        first_octet = first_octet | (self.packet_type.bits() & 0x1f);
+        first_octet |= self.packet_type.bits() & 0x1f;
 
         bytes.write_u8(first_octet);
 
@@ -68,8 +68,7 @@ impl ShortHeader {
         match self.packet_type {
             ONE_BYTE => bytes.write_u8(self.packet_number as u8),
             TWO_BYTES => bytes.write_u16::<BigEndian>(self.packet_number as u16),
-            FOUR_BYTES => bytes.write_u32::<BigEndian>(self.packet_number as u32),
-            _ => bytes.write_u32::<BigEndian>(self.packet_number as u32)
+            FOUR_BYTES | _ => bytes.write_u32::<BigEndian>(self.packet_number as u32),
         };
 
         bytes
@@ -88,12 +87,11 @@ impl ShortHeader {
         let conn_id_bit = first_octet & 0x40 > 0;
         let key_phase_bit = first_octet & 0x20 > 0;
 
-        let connection_id;
-        if conn_id_bit {
-            connection_id = Some(reader.read_u64::<BigEndian>()?);
+        let connection_id = if conn_id_bit {
+            Some(reader.read_u64::<BigEndian>()?)
         } else {
-            connection_id = None;
-        }
+            None
+        };
 
         let packet_number = match packet_type {
             ONE_BYTE => reader.read_u8()? as u64,

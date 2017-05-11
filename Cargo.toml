@@ -4,7 +4,11 @@ version = "0.1.0"
 authors = ["Brett Jackson <brett@brettjackson.org>"]
 description = "QUIC library for Rust. WIP"
 license = "MIT"
+keywords = ["quic"]
+repository = "https://github.com/bjackson/quicrs"
 
+[badges]
+travis-ci = { repository = "https://github.com/bjackson/quicrs" }
 
 [dependencies]
 byteorder = "1"
