@@ -11,7 +11,7 @@ pub struct NewConnectionIdFrame {
 
 impl NewConnectionIdFrame {
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(11);
 
         let first_byte = super::NEW_CONNECTION_ID.bits();
 

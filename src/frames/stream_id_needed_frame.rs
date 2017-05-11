@@ -7,7 +7,7 @@ pub struct StreamIdNeededFrame {}
 
 impl StreamIdNeededFrame {
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(17);
 
         let first_byte = super::STREAM_ID_NEEDED.bits();
 

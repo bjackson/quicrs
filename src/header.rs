@@ -45,7 +45,7 @@ pub enum QuicHeader {
 
 impl ShortHeader {
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(13);
         let mut first_octet = 0 as u8;
 
         if self.conn_id_bit {
@@ -116,7 +116,7 @@ impl ShortHeader {
 
 impl LongHeader {
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(17);
         let first_octet = 0x80 | self.packet_type.bits();
 
         bytes.write_u8(first_octet);

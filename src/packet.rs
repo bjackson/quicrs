@@ -51,7 +51,7 @@ impl VersionNegotiationPayload {
     pub fn from_bytes(buf: &[u8]) -> Result<VersionNegotiationPayload> {
         let mut reader = Cursor::new(buf);
 
-        let mut versions = Vec::new();
+        let mut versions = Vec::with_capacity((buf.len() / 4) as usize);
 
         while let Ok(version) = reader.read_u32::<BigEndian>() {
             versions.push(version);
@@ -63,7 +63,7 @@ impl VersionNegotiationPayload {
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(self.versions.len());
 
         self.versions.iter().map(|&version| bytes.write_u32::<BigEndian>(version));
 
@@ -216,6 +216,18 @@ mod tests {
                 error_code: 29,
                 reason_length: reason.len() as u16,
                 reason_phrase: Some(reason.to_string()),
+            }),
+            QuicFrame::MaxStreamData(frames::max_stream_data_frame::MaxStreamDataFrame {
+                stream_id: 20099 as u32,
+                max_stream_data: 290 as u64,
+            }),
+            QuicFrame::MaxStreamData(frames::max_stream_data_frame::MaxStreamDataFrame {
+                stream_id: 20099 as u32,
+                max_stream_data: 290 as u64,
+            }),
+            QuicFrame::MaxStreamData(frames::max_stream_data_frame::MaxStreamDataFrame {
+                stream_id: 20099 as u32,
+                max_stream_data: 290 as u64,
             }),
             QuicFrame::MaxStreamData(frames::max_stream_data_frame::MaxStreamDataFrame {
                 stream_id: 20099 as u32,

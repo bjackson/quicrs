@@ -7,7 +7,7 @@ pub struct PaddingFrame {}
 
 impl PaddingFrame {
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(1);
 
         let first_byte = super::PADDING.bits();
 

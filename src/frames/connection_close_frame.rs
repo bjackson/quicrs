@@ -12,7 +12,10 @@ pub struct ConnectionCloseFrame {
 
 impl ConnectionCloseFrame {
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = match self.reason_phrase {
+            None => Vec::with_capacity(7),
+            Some(ref phrase) => Vec::with_capacity(7 + phrase.len()),
+        };
 
         let first_byte = super::CONNECTION_CLOSE.bits();
 

@@ -10,7 +10,7 @@ pub struct GoAwayFrame {
 
 impl GoAwayFrame {
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(9);
 
         let first_byte = super::GOAWAY.bits();
 

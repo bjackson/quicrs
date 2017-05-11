@@ -44,7 +44,10 @@ impl StreamFrame {
             _ => return Err(QuicError::ParseError)
         };
 
-        let mut stream_data = Vec::new();
+        let mut stream_data = match data_length {
+            Some(length) => Vec::with_capacity(length as usize),
+            None => Vec::with_capacity(1252)
+        };
 
         match data_length {
             None => {

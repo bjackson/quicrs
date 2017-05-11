@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 #![allow(unused_must_use)]
-#[cfg(test)]
 
 extern crate core;
 extern crate byteorder;
@@ -10,13 +9,13 @@ extern crate rand;
 
 // Private modules
 mod frames;
-pub mod header;
+mod header;
+mod util;
 
 // Public modules
 pub mod error;
 pub mod packet;
 pub mod client;
-pub mod util;
 
 #[cfg(test)]
 mod tests {
