@@ -33,7 +33,7 @@ impl<'a> Stream<'a> {
             state: StreamState::Idle,
             max_data: max_data,
             offset: 0,
-            frame_queue: Vec::with_capacity(100),
+            frame_queue: Vec::with_capacity(128),
             next_offset: 0,
         })
     }
@@ -42,6 +42,8 @@ impl<'a> Stream<'a> {
         self.frame_queue.push(frame);
         self.frame_queue.sort_by_key(|f| f.offset);
         self.frame_queue.dedup_by_key(|f| f.offset);
+
+
 
         let mut next_offset = self.next_offset;
 
@@ -61,6 +63,12 @@ impl<'a> Stream<'a> {
                 .map(|f| *f)
                 .collect();
 
+            // Set stream state to half-closed (remote) if
+            // we receive a packet with the fin flag.
+            if frame.fin {
+                self.state = StreamState::HalfClosedRemote;
+            }
+
             self.next_offset = next_offset;
             Some(bytes)
         } else {
@@ -76,7 +84,7 @@ mod tests {
     #[test]
     fn test_receive_frame() {
         let frame_1 = StreamFrame {
-            f: false,
+            fin: false,
             data_length_present: true,
             data_length: Some(15),
             stream_id: 1,
@@ -85,7 +93,7 @@ mod tests {
         };
 
         let frame_2 = StreamFrame {
-            f: false,
+            fin: false,
             data_length_present: true,
             data_length: Some(25),
             stream_id: 1,
@@ -94,7 +102,7 @@ mod tests {
         };
 
         let frame_3 = StreamFrame {
-            f: false,
+            fin: false,
             data_length_present: true,
             data_length: Some(45),
             stream_id: 1,
@@ -103,7 +111,7 @@ mod tests {
         };
 
         let frame_4 = StreamFrame {
-            f: false,
+            fin: false,
             data_length_present: true,
             data_length: Some(20),
             stream_id: 1,
@@ -112,12 +120,30 @@ mod tests {
         };
 
         let frame_5 = StreamFrame {
-            f: false,
+            fin: false,
             data_length_present: true,
             data_length: Some(10),
             stream_id: 1,
             offset: 105,
             stream_data: vec![4u8; 10],
+        };
+
+        let frame_6 = StreamFrame {
+            fin: false,
+            data_length_present: true,
+            data_length: Some(15),
+            stream_id: 1,
+            offset: 115,
+            stream_data: vec![4u8; 15],
+        };
+
+        let frame_7 = StreamFrame {
+            fin: false,
+            data_length_present: true,
+            data_length: Some(12),
+            stream_id: 1,
+            offset: 130,
+            stream_data: vec![4u8; 12],
         };
 
         let mut stream = Stream::new(1, 250000).unwrap();
@@ -141,6 +167,14 @@ mod tests {
         let r_5 = stream.on_receive_frame(&frame_5);
 
         assert_eq!(r_5.unwrap(), frame_5.stream_data);
+
+        let r_7 = stream.on_receive_frame(&frame_7);
+
+        assert_eq!(r_7, None);
+
+        let r_6 = stream.on_receive_frame(&frame_6);
+
+        assert_eq!(r_6.unwrap(), [frame_6.stream_data.clone(), frame_7.stream_data.clone()].concat());
 
     }
 }

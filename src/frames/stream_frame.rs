@@ -8,7 +8,7 @@ use std::io::Read;
 
 #[derive(Debug, PartialEq)]
 pub struct StreamFrame {
-    pub f: bool,
+    pub fin: bool,
     pub data_length_present: bool,
     pub data_length: Option<u16>,
     pub stream_id: u32,
@@ -25,7 +25,7 @@ impl StreamFrame {
         let mut reader = Cursor::new(buf);
         let first_octet = reader.read_u8()?;
 
-        let f = first_octet & 0x20 > 0;
+        let fin = first_octet & 0x20 > 0;
         let data_length_present = first_octet & 0x10 > 0;
 
         let oo = (first_octet >> 2) & 0x03;
@@ -65,7 +65,7 @@ impl StreamFrame {
 
 
         Ok(StreamFrame {
-            f: f,
+            fin: fin,
             data_length_present: data_length_present,
             data_length: data_length,
             stream_id: stream_id,
@@ -79,7 +79,7 @@ impl StreamFrame {
 
         let mut type_byte = 0xc0;
 
-        if self.f {
+        if self.fin {
             type_byte |= 0x20;
         }
 
@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn serialize_stream_frame_1() {
         let frame = StreamFrame {
-            f: false,
+            fin: false,
             data_length_present: true,
             data_length: Some(50),
             stream_id: 259,
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn serialize_stream_frame_2() {
         let frame = StreamFrame {
-            f: false,
+            fin: false,
             data_length_present: true,
             data_length: Some(1100),
             stream_id: 12590,
