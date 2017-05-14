@@ -10,6 +10,14 @@ use util::OFSize;
 //use frames::ACK;
 use util::optimal_field_size;
 
+
+const UFLOAT_16_EXPONENT_BITS: u16 = 5;
+const UFLOAT_16_MAX_EXPONENT: u16 = (1 << UFLOAT_16_EXPONENT_BITS) - 2; // 30
+const UFLOAT_16_MANTISSA_BITS: u16 = 16 - UFLOAT_16_EXPONENT_BITS; // 11
+const UFLOAT_16_MANTISSA_EFFECTIVE_BITS: u16 = UFLOAT_16_MANTISSA_BITS + 1; // 12
+const UFLOAT_16_MAX_VALUE: u64 =
+(((1u64 << UFLOAT_16_MANTISSA_EFFECTIVE_BITS) - 1) << UFLOAT_16_MAX_EXPONENT) as u64; // 0x3FFC0000000
+
 #[derive(Debug, PartialEq)]
 pub struct AckFrame {
     pub num_blocks: Option<u8>,
@@ -30,7 +38,7 @@ pub struct AckBlock {
 }
 
 impl AckBlock {
-    pub fn from_bytes(buf: &[u8], field_len: usize) -> Result<AckBlock> {
+    pub fn from_bytes(buf: &[u8], field_len: usize) -> Result<Self> {
         let mut reader = Cursor::new(buf);
 
         let gap = reader.read_u8()?;
@@ -61,17 +69,79 @@ impl AckBlock {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct AckTimestampValue {
+    pub microseconds: u64,
+}
+
+impl AckTimestampValue {
+    pub fn from_u16(val: u16) -> Result<Self> {
+//        let mut exponent = (val & 0xf800) >> 10 as u64;
+//        let mantissa = (val & 0x07ff) as u64;
+
+        let mut res = val as u64;
+
+        if res < (1 << UFLOAT_16_MANTISSA_EFFECTIVE_BITS) {
+            return Ok(AckTimestampValue {
+                microseconds: res,
+            })
+        }
+
+        let mut exponent = val >> UFLOAT_16_MANTISSA_BITS;
+        exponent -= 1;
+
+        res -= (exponent as u64) << UFLOAT_16_MANTISSA_BITS;
+        res <<= exponent;
+
+        Ok(AckTimestampValue {
+            microseconds: res,
+        })
+    }
+
+    pub fn as_u16(&self) -> u16 {
+        let mut value = self.microseconds;
+
+        if value < (1 << UFLOAT_16_MANTISSA_EFFECTIVE_BITS) {
+            value as u16
+        } else if value >= UFLOAT_16_MAX_VALUE as u64 {
+            u16::max_value() as u16
+        } else {
+            let mut offset = 16u16;
+            let mut exponent = 0u16;
+
+            loop {
+                if offset == 0 {
+                    break;
+                }
+
+                if value >= (1u64 << ((UFLOAT_16_MANTISSA_BITS + offset) as u64)) {
+                    exponent += offset;
+                    value >>= offset;
+                }
+
+                offset /= 2;
+            }
+
+            (value as u16 + (exponent << UFLOAT_16_MANTISSA_BITS) as u16) as u16
+        }
+
+    }
+}
+
+
+#[derive(Debug, PartialEq)]
 pub struct AckTimestamp {
     pub delta_la: u8,
-    pub time_since_prev: u16
+    pub time_since_prev: AckTimestampValue
 }
 
 impl AckTimestamp {
-    pub fn from_bytes(buf: &[u8]) -> Result<AckTimestamp> {
+    pub fn from_bytes(buf: &[u8]) -> Result<Self> {
         let mut reader = Cursor::new(buf);
 
         let delta_la = reader.read_u8()?;
-        let time_since_prev = reader.read_u16::<BigEndian>()?;
+        let time_since_prev_val = reader.read_u16::<BigEndian>()?;
+
+        let time_since_prev = AckTimestampValue::from_u16(time_since_prev_val)?;
 
         Ok(AckTimestamp {
             delta_la: delta_la,
@@ -83,14 +153,14 @@ impl AckTimestamp {
         let mut bytes = Vec::new();
 
         bytes.write_u8(self.delta_la);
-        bytes.write_u16::<BigEndian>(self.time_since_prev);
+        bytes.write_u16::<BigEndian>(self.time_since_prev.as_u16());
 
         bytes
     }
 }
 
 impl AckFrame {
-    pub fn from_bytes(buf: &[u8]) -> Result<AckFrame> {
+    pub fn from_bytes(buf: &[u8]) -> Result<Self> {
         let mut reader = Cursor::new(buf);
 
         let type_byte = reader.read_u8()?;
@@ -373,11 +443,27 @@ mod tests {
         let timestamps = vec![
             AckTimestamp {
                 delta_la: 31,
-                time_since_prev: 26,
+                time_since_prev: AckTimestampValue {
+                    microseconds: 26
+                },
             },
             AckTimestamp {
                 delta_la: 42,
-                time_since_prev: 97,
+                time_since_prev: AckTimestampValue {
+                    microseconds: 290
+                },
+            },
+            AckTimestamp {
+                delta_la: 12,
+                time_since_prev: AckTimestampValue {
+                    microseconds: 4096
+                },
+            },
+            AckTimestamp {
+                delta_la: 19,
+                time_since_prev: AckTimestampValue {
+                    microseconds: 25000
+                },
             }
         ];
 
@@ -402,7 +488,7 @@ mod tests {
 
         let ack_frame = AckFrame {
             num_blocks: Some(4),
-            num_ts: 2,
+            num_ts: 4,
             largest_ack: 497,
             ack_delay: 9,
             first_ack_len: ack_blocks.len() as u64,
@@ -417,5 +503,13 @@ mod tests {
         let parsed_ack_frame = AckFrame::from_bytes(&ack_frame_bytes).unwrap();
 
         assert_eq!(ack_frame, parsed_ack_frame);
+    }
+
+    #[test]
+    fn serialize_timestamp_value() {
+        let time_since_prev = 0x1000;
+        let microseconds = AckTimestampValue::from_u16(time_since_prev).unwrap();
+
+        assert_eq!(microseconds.microseconds, 4096);
     }
 }
