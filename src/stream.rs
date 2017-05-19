@@ -5,12 +5,12 @@ use error::Result;
 use error::QuicError;
 use frames::stream_frame::StreamFrame;
 use futures::Poll;
-use futures::Async::Ready;
-use futures::Async::NotReady;
+use futures::Async;
+use futures::AsyncSink;
 
 use futures::Stream;
-use futures::Future;
-use futures::IntoFuture;
+use futures::Sink;
+use futures::StartSend;
 
 #[derive(Debug, PartialEq)]
 pub enum StreamState {
@@ -22,18 +22,20 @@ pub enum StreamState {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct QuicStream<'a> {
+pub struct QuicStream {
     pub id: u32,
     pub state: StreamState,
     pub max_data: u64,
     pub offset: u64,
-    pub frame_queue: Vec<&'a StreamFrame>,
+    pub send_offset: u64,
+    pub frame_queue: Vec<StreamFrame>,
     pub next_offset: u64,
     prepared_stream: Vec<u8>,
+    frames_to_send: Vec<StreamFrame>
 }
 
-impl<'a> QuicStream<'a> {
-    pub fn new(id: u32, max_data: u64) -> Result<QuicStream<'a>> {
+impl QuicStream {
+    pub fn new(id: u32, max_data: u64) -> Result<QuicStream> {
         Ok(QuicStream {
             id: id,
             state: StreamState::Idle,
@@ -41,12 +43,14 @@ impl<'a> QuicStream<'a> {
             offset: 0,
             frame_queue: Vec::with_capacity(128),
             next_offset: 0,
-            prepared_stream: Vec::with_capacity(1024)
+            prepared_stream: Vec::with_capacity(1024),
+            send_offset: 0,
+            frames_to_send: Vec::with_capacity(1024),
         })
     }
 
-    pub fn on_receive_frame(&mut self, frame: &'a StreamFrame) -> Option<Vec<u8>> {
-        self.frame_queue.push(frame);
+    pub fn on_receive_frame(&mut self, frame: &StreamFrame) -> Option<Vec<u8>> {
+        self.frame_queue.push(frame.clone());
         self.frame_queue.sort_by_key(|f| f.offset);
         self.frame_queue.dedup_by_key(|f| f.offset);
 
@@ -64,8 +68,8 @@ impl<'a> QuicStream<'a> {
 
         if !bytes.is_empty() {
             self.frame_queue = self.frame_queue.iter()
-                .filter(|f| f.offset > self.next_offset)
-                .map(|f| *f)
+                .filter(|f| f.offset >= next_offset)
+                .map(|f| f.clone())
                 .collect();
 
             // Set stream state to half-closed (remote) if
@@ -83,29 +87,46 @@ impl<'a> QuicStream<'a> {
     }
 }
 
-impl<'a> Stream for QuicStream<'a> {
+impl Stream for QuicStream {
     type Item = Vec<u8>;
     type Error = QuicError;
+
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         if self.prepared_stream.is_empty() {
-            Ok(NotReady)
+            Ok(Async::NotReady)
         } else {
             let returned_bytes = self.prepared_stream.clone();
             self.prepared_stream.clear();
 
-            Ok(Ready(Some(returned_bytes)))
+            Ok(Async::Ready(Some(returned_bytes)))
         }
     }
 }
 
-//impl<'a> IntoFuture for QuicStream<'a> {
-//    type Item = Vec<u8>;
-//    type Error = QuicError;
-//    type Future = Future<Item=Self::Item, Error=Self::Error>;
-//    fn into_future(&mut self) -> Self::Future {
-//        self.poll();
-//    }
-//}
+impl Sink for QuicStream {
+    type SinkItem = Vec<u8>;
+    type SinkError = QuicError;
+
+    fn start_send(&mut self,
+                  item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        let frame = StreamFrame {
+            fin: false,
+            data_length_present: true,
+            data_length: Some(item.len() as u16),
+            stream_id: self.id,
+            offset: self.send_offset,
+            stream_data: item.clone(),
+        };
+
+        self.frames_to_send.push(frame);
+
+        Ok(AsyncSink::Ready)
+    }
+
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        Ok(Async::Ready(()))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -155,7 +176,7 @@ mod tests {
             data_length: Some(10),
             stream_id: 1,
             offset: 105,
-            stream_data: vec![4u8; 10],
+            stream_data: vec![5u8; 10],
         };
 
         let frame_6 = StreamFrame {
@@ -164,7 +185,7 @@ mod tests {
             data_length: Some(15),
             stream_id: 1,
             offset: 115,
-            stream_data: vec![4u8; 15],
+            stream_data: vec![6u8; 15],
         };
 
         let frame_7 = StreamFrame {
@@ -173,14 +194,15 @@ mod tests {
             data_length: Some(12),
             stream_id: 1,
             offset: 130,
-            stream_data: vec![4u8; 12],
+            stream_data: vec![7u8; 12],
         };
 
         let mut stream = QuicStream::new(1, 250000).unwrap();
 
-        stream.and_then(|bytes| {
-            println!("bytes = {:?}", bytes);
-        });
+//        stream.for_each(|bytes| {
+//            println!("bytes = {:?}", bytes);
+//            Ok(())
+//        });
 
         let r_1 = stream.on_receive_frame(&frame_1);
 
@@ -209,6 +231,8 @@ mod tests {
         let r_6 = stream.on_receive_frame(&frame_6);
 
         assert_eq!(r_6.unwrap(), [frame_6.stream_data.clone(), frame_7.stream_data.clone()].concat());
+
+        println!("stream = {:?}", stream);
 
     }
 }

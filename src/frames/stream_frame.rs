@@ -6,7 +6,7 @@ use error::QuicError;
 use error::Result;
 use std::io::Read;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct StreamFrame {
     pub fin: bool,
     pub data_length_present: bool,
@@ -16,9 +16,6 @@ pub struct StreamFrame {
     pub stream_data: Vec<u8>,
 }
 
-//impl Clone for StreamFrame {
-//
-//}
 
 impl StreamFrame {
     pub fn from_bytes(buf: &[u8]) -> Result<StreamFrame> {

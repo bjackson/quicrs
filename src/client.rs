@@ -6,15 +6,15 @@ use error::Result;
 use stream::QuicStream;
 
 #[derive(Debug)]
-pub struct QuicClient<'a> {
+pub struct QuicClient {
     pub socket: UdpSocket,
     pub current_packet_number: u32,
     pub address: String,
-    pub streams: Vec<QuicStream<'a>>,
+    pub streams: Vec<QuicStream>,
 }
 
 
-impl<'a> QuicClient<'a> {
+impl QuicClient {
     pub fn new(address: &str, port: u16) -> Result<QuicClient> {
         let core = Core::new().unwrap();
         let handle = core.handle();
