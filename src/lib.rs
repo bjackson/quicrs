@@ -7,6 +7,11 @@ extern crate byteorder;
 extern crate bitflags;
 extern crate rand;
 extern crate itertools;
+extern crate futures;
+extern crate tokio_core;
+extern crate tokio_io;
+extern crate tokio_service;
+extern crate bytes;
 
 
 // Private modules

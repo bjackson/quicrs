@@ -1,31 +1,38 @@
+//use std::net::UdpSocket;
+use tokio_core::net::UdpSocket;
+use tokio_core::reactor::Core;
+//use std::sync::{Arc, Mutex};
 use error::Result;
-use std::net::UdpSocket;
+use stream::QuicStream;
 
-
-pub struct QuicClient {
+#[derive(Debug)]
+pub struct QuicClient<'a> {
     pub socket: UdpSocket,
     pub current_packet_number: u32,
-    pub address: String
+    pub address: String,
+    pub streams: Vec<QuicStream<'a>>,
 }
 
 
-impl QuicClient {
+impl<'a> QuicClient<'a> {
     pub fn new(address: &str, port: u16) -> Result<QuicClient> {
-        let address = format!("{}:{}", address, port);
-        let udp_socket = UdpSocket::bind("0.0.0.0:0")?;
+        let core = Core::new().unwrap();
+        let handle = core.handle();
 
-        let client = QuicClient {
+        let address = format!("{}:{}", address, port).parse()?;
+        let udp_socket = UdpSocket::bind(&"0.0.0.0:0".parse().unwrap(), &handle)?;
+
+        let mut client = QuicClient {
             socket: udp_socket,
             current_packet_number: QuicClient::get_first_packet_number()?,
             address: address,
+            streams: vec![]
         };
 
-        //        let init_header = LongHeader {
-        //            packet_type: VERSION_NEGOTIATION,
-        //            connection_id: 1,
-        //            packet_number: client.current_packet_number,
-        //            version: 1,
-        //        };
+        let tls_stream = QuicStream::new(0, 2u64.pow(60))?;
+
+        client.streams.push(tls_stream);
+
 
         Ok(client)
     }
@@ -38,5 +45,15 @@ impl QuicClient {
         let mut rng = OsRng::new()?;
 
         Ok(between.ind_sample(&mut rng))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn create_client() {
+        let _ = QuicClient::new("127.0.0.1", 443);
     }
 }

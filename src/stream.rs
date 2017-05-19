@@ -1,11 +1,16 @@
-//use std::collections::VecDeque;
+//use std::rc::Rc;
+//use std::cell::RefCell;
 
-//use itertools::Itertools;
-
-//use error::QuicError;
 use error::Result;
-
+use error::QuicError;
 use frames::stream_frame::StreamFrame;
+use futures::Poll;
+use futures::Async::Ready;
+use futures::Async::NotReady;
+
+use futures::Stream;
+use futures::Future;
+use futures::IntoFuture;
 
 #[derive(Debug, PartialEq)]
 pub enum StreamState {
@@ -17,24 +22,26 @@ pub enum StreamState {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Stream<'a> {
+pub struct QuicStream<'a> {
     pub id: u32,
     pub state: StreamState,
     pub max_data: u64,
     pub offset: u64,
     pub frame_queue: Vec<&'a StreamFrame>,
     pub next_offset: u64,
+    prepared_stream: Vec<u8>,
 }
 
-impl<'a> Stream<'a> {
-    pub fn new(id: u32, max_data: u64) -> Result<Stream<'a>> {
-        Ok(Stream {
+impl<'a> QuicStream<'a> {
+    pub fn new(id: u32, max_data: u64) -> Result<QuicStream<'a>> {
+        Ok(QuicStream {
             id: id,
             state: StreamState::Idle,
             max_data: max_data,
             offset: 0,
             frame_queue: Vec::with_capacity(128),
             next_offset: 0,
+            prepared_stream: Vec::with_capacity(1024)
         })
     }
 
@@ -42,8 +49,6 @@ impl<'a> Stream<'a> {
         self.frame_queue.push(frame);
         self.frame_queue.sort_by_key(|f| f.offset);
         self.frame_queue.dedup_by_key(|f| f.offset);
-
-
 
         let mut next_offset = self.next_offset;
 
@@ -70,12 +75,37 @@ impl<'a> Stream<'a> {
             }
 
             self.next_offset = next_offset;
+            self.prepared_stream.extend(bytes.clone());
             Some(bytes)
         } else {
             None
         }
     }
 }
+
+impl<'a> Stream for QuicStream<'a> {
+    type Item = Vec<u8>;
+    type Error = QuicError;
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        if self.prepared_stream.is_empty() {
+            Ok(NotReady)
+        } else {
+            let returned_bytes = self.prepared_stream.clone();
+            self.prepared_stream.clear();
+
+            Ok(Ready(Some(returned_bytes)))
+        }
+    }
+}
+
+//impl<'a> IntoFuture for QuicStream<'a> {
+//    type Item = Vec<u8>;
+//    type Error = QuicError;
+//    type Future = Future<Item=Self::Item, Error=Self::Error>;
+//    fn into_future(&mut self) -> Self::Future {
+//        self.poll();
+//    }
+//}
 
 #[cfg(test)]
 mod tests {
@@ -146,7 +176,11 @@ mod tests {
             stream_data: vec![4u8; 12],
         };
 
-        let mut stream = Stream::new(1, 250000).unwrap();
+        let mut stream = QuicStream::new(1, 250000).unwrap();
+
+        stream.and_then(|bytes| {
+            println!("bytes = {:?}", bytes);
+        });
 
         let r_1 = stream.on_receive_frame(&frame_1);
 

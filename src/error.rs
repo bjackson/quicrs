@@ -72,7 +72,8 @@ pub enum QuicError {
     SerializeError,
     FromUtf8Error(string::FromUtf8Error),
     PacketTooLarge,
-    TransportError(TransportErrorFlag)
+    TransportError(TransportErrorFlag),
+    StringParseError(string::ParseError)
 }
 
 pub type Result<T> = result::Result<T, QuicError>;
@@ -86,6 +87,7 @@ impl Error for QuicError {
             QuicError::SerializeError => "Error serializing packet",
             QuicError::PacketTooLarge => "Packet too large",
             QuicError::TransportError(_) => "Transport error",
+            QuicError::StringParseError(_) => "String parse error",
         }
     }
 
@@ -93,7 +95,9 @@ impl Error for QuicError {
         match *self {
             QuicError::Io(ref err) => Some(err),
             QuicError::FromUtf8Error(ref err) => Some(err),
-            QuicError::ParseError | QuicError::SerializeError | QuicError::PacketTooLarge | QuicError::TransportError(_) => None,
+            QuicError::ParseError | QuicError::SerializeError
+            | QuicError::PacketTooLarge | QuicError::TransportError(_)
+            | QuicError::StringParseError(_) => None,
         }
     }
 }
@@ -110,11 +114,16 @@ impl From<string::FromUtf8Error> for QuicError {
     }
 }
 
+impl From<string::ParseError> for QuicError {
+    fn from(err: string::ParseError) -> QuicError { QuicError::StringParseError(err) }
+}
+
 impl fmt::Display for QuicError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             QuicError::Io(ref err) => err.fmt(f),
             QuicError::FromUtf8Error(ref err) => err.fmt(f),
+            QuicError::StringParseError(ref err) => err.fmt(f),
             QuicError::ParseError => write!(f, "Error parsing packet"),
             QuicError::SerializeError => write!(f, "Error serializing packet"),
             QuicError::PacketTooLarge => write!(f, "Packet too large"),

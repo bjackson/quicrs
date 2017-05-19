@@ -2,6 +2,7 @@ use std::io::Cursor;
 use byteorder::{WriteBytesExt, ReadBytesExt};
 use error::Result;
 
+
 #[derive(Debug, PartialEq)]
 pub struct StreamIdNeededFrame {}
 
